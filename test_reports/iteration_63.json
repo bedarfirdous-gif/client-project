@@ -1,0 +1,129 @@
+{
+  "summary": "Login screen blinking/refresh loop bug fix (SECOND ATTEMPT) verified successfully. All 7 test scenarios passed. The key fixes in App.js (isLoggingIn ref, logout blocking during login) and PermissionContext.js (using direct fetch() instead of api()) are working correctly.",
+  
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "features_tested": [
+    {
+      "feature": "Login flow works without blinking",
+      "status": "WORKING",
+      "details": "User can log in with valid credentials and stays on dashboard without any flicker"
+    },
+    {
+      "feature": "Loading spinner shows during initial auth check",
+      "status": "WORKING",
+      "details": "Spinner with animate-spin class detected during both initial load and token validation"
+    },
+    {
+      "feature": "After login, dashboard renders without flicker",
+      "status": "WORKING",
+      "details": "Dashboard stable for 5+ seconds after login with no blinking detected"
+    },
+    {
+      "feature": "Permission fetching doesn't trigger logout loop",
+      "status": "WORKING",
+      "details": "PermissionContext uses direct fetch() at lines 239-252, dashboard remains stable after permissions load"
+    },
+    {
+      "feature": "Multiple rapid login attempts are prevented",
+      "status": "WORKING",
+      "details": "isLoggingIn ref at line 77 prevents race conditions - rapid clicks handled gracefully"
+    },
+    {
+      "feature": "Token validation on page refresh doesn't cause blinking",
+      "status": "WORKING",
+      "details": "User stays logged in after page refresh, no blinking detected"
+    },
+    {
+      "feature": "Logout cannot interrupt login in progress",
+      "status": "WORKING",
+      "details": "Logout function checks isLoggingIn.current at line 89 before proceeding"
+    },
+    {
+      "feature": "Invalid token handling",
+      "status": "WORKING",
+      "details": "Loading spinner shown, then graceful redirect to login page - token cleared from localStorage"
+    },
+    {
+      "feature": "Invalid credentials handling",
+      "status": "WORKING",
+      "details": "Page stays on login form without refresh loop after failed login attempt"
+    }
+  ],
+
+  "code_review_verification": {
+    "fix_1_isLoggingIn_ref": {
+      "location": "App.js line 77",
+      "description": "isLoggingIn ref added to prevent race conditions between login attempts",
+      "status": "VERIFIED"
+    },
+    "fix_2_logout_blocks_during_login": {
+      "location": "App.js line 89",
+      "description": "Logout checks if (isLoggingOut.current || isLoggingIn.current) return; to prevent logout during login",
+      "status": "VERIFIED"
+    },
+    "fix_3_login_uses_isLoggingIn_guard": {
+      "location": "App.js lines 288-293",
+      "description": "Login function checks if (isLoggingIn.current) and returns early to prevent multiple simultaneous attempts",
+      "status": "VERIFIED"
+    },
+    "fix_4_login_finally_block": {
+      "location": "App.js line 339",
+      "description": "isLoggingIn.current = false in finally block ensures ref is always reset",
+      "status": "VERIFIED"
+    },
+    "fix_5_permission_context_direct_fetch": {
+      "location": "PermissionContext.js lines 229-252",
+      "description": "Uses direct fetch() with token from localStorage instead of api() to avoid logout loop on 401",
+      "status": "VERIFIED"
+    },
+    "fix_6_permission_context_graceful_failure": {
+      "location": "PermissionContext.js lines 246-251",
+      "description": "On failed permission fetch, sets empty permissions instead of triggering logout",
+      "status": "VERIFIED"
+    },
+    "fix_7_permission_ref_reset_on_logout": {
+      "location": "PermissionContext.js line 187",
+      "description": "permsFetchedRef.current = false resets when user logs out",
+      "status": "VERIFIED"
+    }
+  },
+
+  "test_report_links": [
+    "/app/test_reports/iteration_63.json"
+  ],
+  
+  "action_items": [],
+  
+  "critical_code_review_comments": [],
+  
+  "updated_files": [],
+  
+  "success_rate": {
+    "backend": "N/A (frontend only testing)",
+    "frontend": "100% (9/9 tests passed)"
+  },
+  
+  "test_credentials": {
+    "superadmin": {
+      "email": "superadmin@bijnisbooks.com",
+      "password": "SuperAdmin@123"
+    }
+  },
+  
+  "seed_data_creation": "None",
+  
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  
+  "context_for_next_testing_agent": "Login blinking bug fix (second attempt) verified. Key changes: (1) isLoggingIn ref at App.js:77 prevents race conditions, (2) Logout blocked during login at App.js:89, (3) PermissionContext.js lines 229-252 uses direct fetch() instead of api() to avoid logout loop on permission fetch failure. All login scenarios tested: fresh login, rapid clicks, page refresh, invalid token, invalid credentials - all working without blinking."
+}

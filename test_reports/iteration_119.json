@@ -1,0 +1,144 @@
+{
+  "summary": "Tested Enterprise Self-Healing System feature. All 24 backend API tests passed (100%). Frontend Enterprise tab verified with all sections working: System Status HEALTHY, Service Health (Backend/Frontend/MongoDB all healthy), System Metrics (CPU/Memory/Disk), Learning Engine, Rollback Manager, and Critical Module Protection.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AutoHeal Dashboard header", "issues": ["Minor HTML nesting warning: Badge (div) inside p tag causing hydration warning. This is cosmetic and doesn't affect functionality."]}
+    ]
+  },
+
+  "passed_tests": [
+    "Backend: GET /api/health - Returns 200 with status 'healthy'",
+    "Backend: GET /api/self-healing/dashboard - Returns comprehensive dashboard data (system_health, error_stats, auto_heal_enabled, is_running)",
+    "Backend: GET /api/self-healing/health - Returns service health status (Backend API, Frontend, MongoDB)",
+    "Backend: GET /api/self-healing/critical-modules - Returns list of protected modules (12 modules)",
+    "Backend: GET /api/self-healing/errors - Returns recent detected errors",
+    "Backend: POST /api/self-healing/toggle-auto-heal?enabled=true - Enables auto-heal successfully",
+    "Backend: POST /api/self-healing/toggle-auto-heal?enabled=false - Disables auto-heal successfully",
+    "Backend: GET /api/self-healing/rollback-stats - Returns rollback statistics",
+    "Backend: GET /api/self-healing/learning-stats - Returns learning engine statistics",
+    "Backend: POST /api/self-healing/handle-error - Submits error to self-healing pipeline successfully",
+    "Backend: GET /api/self-healing/patterns - Returns error patterns list",
+    "Backend: GET /api/self-healing/sandbox-results - Returns sandbox test results",
+    "Backend: GET /api/self-healing/reliable-patterns - Returns reliable patterns for auto-fix",
+    "Backend: All endpoints require authentication (return 401/403 without token)",
+    "Frontend: AutoHeal AI Dashboard page loads correctly",
+    "Frontend: data-testid='autoheal-dashboard' attribute present",
+    "Frontend: 6 tabs present (Real Agent, Enterprise, Overview, Reports, Alerts, Manual Diagnosis)",
+    "Frontend: Enterprise tab shows 'Enterprise Self-Healing System' header",
+    "Frontend: System Status card shows 'HEALTHY' badge",
+    "Frontend: Errors Detected stat shows count (2)",
+    "Frontend: Auto-Fix Rate stat shows percentage (0.0%)",
+    "Frontend: Protected Modules stat shows count (12)",
+    "Frontend: Service Health section shows Backend API (healthy, 20.76ms response)",
+    "Frontend: Service Health section shows Frontend (healthy, 19.86ms response)",
+    "Frontend: Service Health section shows MongoDB (healthy, 0.00ms response)",
+    "Frontend: System Metrics shows CPU Usage (3.3%)",
+    "Frontend: System Metrics shows Memory Usage (62.0%)",
+    "Frontend: System Metrics shows Disk Usage (57.0%)",
+    "Frontend: Learning Engine section present with AI-powered pattern recognition",
+    "Frontend: Rollback Manager section present with automatic reversion system",
+    "Frontend: Critical Module Protection section present",
+    "Frontend: Refresh button works",
+    "Frontend: 'Disable Auto-Heal' button present (indicating auto-heal is currently enabled)"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_self_healing_enterprise.py",
+    "/app/test_reports/pytest/self_healing_enterprise_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "Good: All self-healing core modules properly integrated (ErrorDetectionEngine, SandboxTester, CanaryDeployer, RollbackManager, CriticalModuleGuard, LearningEngine, HealthMonitor)",
+    "Good: Health monitoring checks Backend API, Frontend, and MongoDB with response times",
+    "Good: System metrics collection using psutil (CPU, Memory, Disk)",
+    "Good: Error fingerprinting and deduplication implemented",
+    "Good: Learning engine tracks pattern confidence and success rates",
+    "Good: Proper authentication required on all self-healing endpoints",
+    "Minor: Badge component inside p tag causes HTML nesting warning - consider changing p to div in AutoHealDashboard.js line 407"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_self_healing_enterprise.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (24/24 tests passed)",
+    "frontend": "100% (All UI elements and interactions verified)"
+  },
+
+  "test_credentials": {
+    "superadmin": {"email": "superadmin@bijnisbooks.com", "password": "admin123"}
+  },
+
+  "seed_data_creation": "Error detection engine automatically detects and stores errors during normal operation",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Enterprise Self-Healing System fully tested. Located at AutoHeal AI > Enterprise tab. Backend endpoints all prefixed with /api/self-healing/. Key endpoints: dashboard (GET), health (GET), critical-modules (GET), errors (GET), toggle-auto-heal (POST), rollback-stats (GET), learning-stats (GET), handle-error (POST). Frontend shows System Status, Service Health (3 services), System Metrics (CPU/Memory/Disk), Learning Engine stats, Rollback Manager stats, and Critical Module Protection list. All services currently healthy.",
+
+  "verified_features": {
+    "enterprise_self_healing_system": {
+      "status": "WORKING",
+      "location": "AutoHeal AI > Enterprise tab",
+      "components": {
+        "system_status": "HEALTHY badge with activity icon",
+        "service_health": {
+          "backend_api": "healthy with response time",
+          "frontend": "healthy with response time",
+          "mongodb": "healthy with response time"
+        },
+        "system_metrics": {
+          "cpu_usage": "percentage with progress bar",
+          "memory_usage": "percentage with progress bar",
+          "disk_usage": "percentage with progress bar"
+        },
+        "learning_engine": {
+          "total_patterns": "count",
+          "reliable_patterns": "count",
+          "success_rate_24h": "percentage with progress bar",
+          "avg_confidence": "percentage",
+          "events_24h": "count"
+        },
+        "rollback_manager": {
+          "total_rollbacks": "count",
+          "success_rate": "percentage",
+          "active_triggers": "count",
+          "successful_rollbacks": "count",
+          "failed_rollbacks": "count",
+          "backups_stored": "count"
+        },
+        "critical_module_protection": "List of protected modules with protection levels (strict/standard)",
+        "recent_operations": "List of recent healing operations with status"
+      },
+      "controls": {
+        "refresh_button": "Reloads dashboard data",
+        "auto_heal_toggle": "Enable/Disable auto-healing"
+      }
+    },
+    "backend_endpoints": {
+      "GET /api/self-healing/dashboard": "Returns comprehensive dashboard data",
+      "GET /api/self-healing/health": "Returns real-time service health",
+      "GET /api/self-healing/critical-modules": "Returns protected modules list",
+      "GET /api/self-healing/errors": "Returns detected errors",
+      "POST /api/self-healing/toggle-auto-heal": "Enable/disable auto-healing",
+      "GET /api/self-healing/rollback-stats": "Returns rollback statistics",
+      "GET /api/self-healing/learning-stats": "Returns learning engine stats",
+      "POST /api/self-healing/handle-error": "Submit error to pipeline",
+      "GET /api/self-healing/patterns": "Returns error patterns",
+      "GET /api/self-healing/reliable-patterns": "Returns reliable patterns",
+      "GET /api/self-healing/sandbox-results": "Returns sandbox test results"
+    }
+  }
+}

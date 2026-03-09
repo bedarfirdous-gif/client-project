@@ -1,0 +1,667 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../App';
+import { toast } from 'sonner';
+import { 
+  Bot, Play, Square, RefreshCw, AlertTriangle, CheckCircle2, 
+  Clock, Zap, Shield, Bug, Code, Database, Wrench, History,
+  TrendingUp, Activity, Terminal, Eye, ChevronDown, ChevronRight,
+  Brain, Sparkles, Undo2, BookOpen, Loader2
+} from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Progress } from '../components/ui/progress';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "../components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+
+const severityColors = {
+  critical: 'bg-red-500',
+  high: 'bg-orange-500',
+  medium: 'bg-yellow-500',
+  low: 'bg-blue-500',
+  info: 'bg-gray-500'
+};
+
+const categoryIcons = {
+  syntax: Code,
+  import: Terminal,
+  duplicate: Bug,
+  undefined: AlertTriangle,
+  runtime: Zap,
+  database: Database,
+  api: Activity,
+  build: Wrench,
+  lint: Eye,
+  integrity: Shield
+};
+
+export default function AIDeveloperPage() {
+  const { api } = useAuth();
+  const [status, setStatus] = useState(null);
+  const [errors, setErrors] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [fixHistory, setFixHistory] = useState([]);
+  const [learnings, setLearnings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
+  const [expandedErrors, setExpandedErrors] = useState({});
+  const [autonomousFixing, setAutonomousFixing] = useState({});
+  const [analyzing, setAnalyzing] = useState({});
+  const [activeTab, setActiveTab] = useState('errors');
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [statusRes, errorsRes, statsRes, historyRes, fixHistoryRes, learningsRes] = await Promise.all([
+        api('/api/ai-developer/status'),
+        api('/api/ai-developer/errors?limit=100'),
+        api('/api/ai-developer/stats'),
+        api('/api/ai-developer/history?limit=10'),
+        api('/api/ai-developer/fix-history?limit=20'),
+        api('/api/ai-developer/learnings')
+      ]);
+      
+      setStatus(statusRes);
+      setErrors(errorsRes.errors || []);
+      setStats(statsRes);
+      setHistory(historyRes.scans || []);
+      setFixHistory(fixHistoryRes.fixes || []);
+      setLearnings(learningsRes.learnings || []);
+    } catch (err) {
+      console.error('Failed to fetch AI Developer data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [api]);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      const result = await api('/api/ai-developer/scan', { method: 'POST' });
+      toast.success(`Scan complete: ${result.total_errors} errors found, ${result.auto_fixed} fixed`);
+      await fetchData();
+    } catch (err) {
+      toast.error('Scan failed');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleStart = async () => {
+    try {
+      await api('/api/ai-developer/start', { method: 'POST' });
+      toast.success('AI Developer monitoring started');
+      await fetchData();
+    } catch (err) {
+      toast.error('Failed to start monitoring');
+    }
+  };
+
+  const handleStop = async () => {
+    try {
+      await api('/api/ai-developer/stop', { method: 'POST' });
+      toast.success('AI Developer monitoring stopped');
+      await fetchData();
+    } catch (err) {
+      toast.error('Failed to stop monitoring');
+    }
+  };
+
+  const handleFix = async (errorId) => {
+    try {
+      const result = await api(`/api/ai-developer/fix/${errorId}`, { method: 'POST' });
+      if (result.success) {
+        toast.success('Fix applied successfully');
+      } else {
+        toast.info(result.message);
+      }
+      await fetchData();
+    } catch (err) {
+      toast.error('Fix failed');
+    }
+  };
+
+  const handleAutonomousFix = async (errorId) => {
+    setAutonomousFixing(prev => ({ ...prev, [errorId]: true }));
+    try {
+      const result = await api(`/api/ai-developer/autonomous-fix/${errorId}`, { method: 'POST' });
+      
+      if (result.success) {
+        toast.success('Autonomous fix applied and verified!');
+      } else {
+        const lastStep = result.steps?.[result.steps.length - 1];
+        toast.error(`Fix failed at step: ${lastStep?.step || 'unknown'}`);
+      }
+      await fetchData();
+    } catch (err) {
+      toast.error('Autonomous fix failed');
+    } finally {
+      setAutonomousFixing(prev => ({ ...prev, [errorId]: false }));
+    }
+  };
+
+  const handleAnalyze = async (errorId) => {
+    setAnalyzing(prev => ({ ...prev, [errorId]: true }));
+    try {
+      const result = await api(`/api/ai-developer/analyze-error/${errorId}`, { method: 'POST' });
+      
+      if (result.success) {
+        toast.success(`Analysis complete: ${result.root_cause}`);
+        // Expand the error to show analysis
+        setExpandedErrors(prev => ({ ...prev, [errorId]: true }));
+      } else {
+        toast.error(`Analysis failed: ${result.error}`);
+      }
+    } catch (err) {
+      toast.error('Analysis failed');
+    } finally {
+      setAnalyzing(prev => ({ ...prev, [errorId]: false }));
+    }
+  };
+
+  const handleAutoFixAll = async () => {
+    try {
+      toast.info('Starting autonomous fix for all high-severity errors...');
+      const result = await api('/api/ai-developer/auto-fix-all', { 
+        method: 'POST',
+        body: JSON.stringify({ severity_threshold: 'high', confidence_threshold: 0.8 })
+      });
+      
+      toast.success(`Attempted ${result.attempted} fixes: ${result.successful} successful, ${result.failed} failed`);
+      await fetchData();
+    } catch (err) {
+      toast.error('Auto-fix all failed');
+    }
+  };
+
+  const handleRollback = async (fixId) => {
+    try {
+      const result = await api(`/api/ai-developer/rollback/${fixId}`, { method: 'POST' });
+      if (result.success) {
+        toast.success('Fix rolled back successfully');
+        await fetchData();
+      } else {
+        toast.error(`Rollback failed: ${result.reason || 'Unknown error'}`);
+      }
+    } catch (err) {
+      toast.error('Rollback failed');
+    }
+  };
+
+  const toggleError = (errorId) => {
+    setExpandedErrors(prev => ({
+      ...prev,
+      [errorId]: !prev[errorId]
+    }));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const criticalCount = errors.filter(e => e.severity === 'critical').length;
+  const highCount = errors.filter(e => e.severity === 'high').length;
+  const fixableCount = errors.filter(e => e.auto_fixable && !e.fixed).length;
+
+  return (
+    <div className="space-y-6 p-6" data-testid="ai-developer-page">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl">
+            <Bot className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">AI Senior Developer Agent</h1>
+            <p className="text-muted-foreground">Autonomous Error Detection & Fixing System</p>
+          </div>
+        </div>
+        
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleScan}
+            disabled={scanning}
+            data-testid="scan-btn"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? 'Scanning...' : 'Run Scan'}
+          </Button>
+          
+          <Button 
+            variant="outline"
+            className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-200 hover:border-purple-400"
+            onClick={handleAutoFixAll}
+            disabled={fixableCount === 0}
+            data-testid="auto-fix-all-btn"
+          >
+            <Brain className="w-4 h-4 mr-2 text-purple-600" />
+            Auto-Fix All ({fixableCount})
+          </Button>
+          
+          {stats?.is_monitoring ? (
+            <Button variant="destructive" onClick={handleStop} data-testid="stop-btn">
+              <Square className="w-4 h-4 mr-2" />
+              Stop Monitoring
+            </Button>
+          ) : (
+            <Button onClick={handleStart} data-testid="start-btn">
+              <Play className="w-4 h-4 mr-2" />
+              Start Monitoring
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Status Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className={status?.status === 'healthy' ? 'border-green-500/50' : status?.status === 'degraded' ? 'border-yellow-500/50' : 'border-red-500/50'}>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">System Status</p>
+                <p className="text-2xl font-bold capitalize">{status?.status || 'Unknown'}</p>
+              </div>
+              <div className={`p-3 rounded-full ${status?.status === 'healthy' ? 'bg-green-500/10' : status?.status === 'degraded' ? 'bg-yellow-500/10' : 'bg-red-500/10'}`}>
+                {status?.status === 'healthy' ? (
+                  <CheckCircle2 className="w-6 h-6 text-green-500" />
+                ) : (
+                  <AlertTriangle className="w-6 h-6 text-yellow-500" />
+                )}
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Badge variant={status?.frontend_build === 'passing' ? 'default' : 'destructive'}>
+                Frontend: {status?.frontend_build}
+              </Badge>
+              <Badge variant={status?.backend_api === 'running' ? 'default' : 'destructive'}>
+                Backend: {status?.backend_api}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Errors</p>
+                <p className="text-2xl font-bold">{errors.length}</p>
+              </div>
+              <div className="p-3 rounded-full bg-red-500/10">
+                <Bug className="w-6 h-6 text-red-500" />
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              {criticalCount > 0 && <Badge variant="destructive">{criticalCount} Critical</Badge>}
+              {highCount > 0 && <Badge className="bg-orange-500">{highCount} High</Badge>}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Auto-Fixed</p>
+                <p className="text-2xl font-bold">{stats?.auto_fixes_applied || 0}</p>
+              </div>
+              <div className="p-3 rounded-full bg-green-500/10">
+                <Wrench className="w-6 h-6 text-green-500" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <p className="text-sm text-muted-foreground">
+                {fixableCount} errors can be auto-fixed
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Uptime</p>
+                <p className="text-2xl font-bold">{stats?.uptime_human || '0h 0m'}</p>
+              </div>
+              <div className="p-3 rounded-full bg-blue-500/10">
+                <Clock className="w-6 h-6 text-blue-500" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${stats?.is_monitoring ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
+              <span className="text-sm text-muted-foreground">
+                {stats?.is_monitoring ? 'Monitoring Active' : 'Monitoring Stopped'}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Scan Statistics */}
+      {stats && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              Scan Statistics
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-accent rounded-lg">
+                <p className="text-3xl font-bold">{stats.total_scans}</p>
+                <p className="text-sm text-muted-foreground">Total Scans</p>
+              </div>
+              <div className="text-center p-4 bg-accent rounded-lg">
+                <p className="text-3xl font-bold">{stats.errors_detected}</p>
+                <p className="text-sm text-muted-foreground">Errors Detected</p>
+              </div>
+              <div className="text-center p-4 bg-accent rounded-lg">
+                <p className="text-3xl font-bold">{stats.errors_fixed}</p>
+                <p className="text-sm text-muted-foreground">Errors Fixed</p>
+              </div>
+              <div className="text-center p-4 bg-accent rounded-lg">
+                <p className="text-3xl font-bold">{stats.fix_patterns_count}</p>
+                <p className="text-sm text-muted-foreground">Fix Patterns</p>
+              </div>
+            </div>
+            {stats.last_scan && (
+              <p className="text-sm text-muted-foreground mt-4">
+                Last scan: {new Date(stats.last_scan).toLocaleString()}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Errors List */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            Detected Errors ({errors.length})
+          </CardTitle>
+          <CardDescription>
+            Errors are sorted by severity. Auto-fixable errors can be fixed with one click.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {errors.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-green-500" />
+              <p>No errors detected! System is healthy.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {errors.map((error) => {
+                const CategoryIcon = categoryIcons[error.category] || Bug;
+                const isExpanded = expandedErrors[error.id];
+                
+                return (
+                  <Collapsible key={error.id} open={isExpanded} onOpenChange={() => toggleError(error.id)}>
+                    <div className={`border rounded-lg ${error.fixed ? 'border-green-500/30 bg-green-500/5' : ''}`}>
+                      <CollapsibleTrigger className="w-full">
+                        <div className="flex items-center justify-between p-4 hover:bg-accent/50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4" />
+                            )}
+                            <div className={`w-2 h-2 rounded-full ${severityColors[error.severity]}`} />
+                            <CategoryIcon className="w-4 h-4 text-muted-foreground" />
+                            <div className="text-left">
+                              <p className="font-medium truncate max-w-md">{error.error_message}</p>
+                              <p className="text-xs text-muted-foreground">{error.file_path?.split('/').pop()}{error.line_number ? `:${error.line_number}` : ''}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="capitalize">{error.category}</Badge>
+                            <Badge className={severityColors[error.severity]}>{error.severity}</Badge>
+                            {error.fixed && <Badge variant="default" className="bg-green-500">Fixed</Badge>}
+                            {error.auto_fixable && !error.fixed && (
+                              <>
+                                <Button 
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => { e.stopPropagation(); handleAnalyze(error.id); }}
+                                  disabled={analyzing[error.id]}
+                                  data-testid={`analyze-btn-${error.id}`}
+                                >
+                                  {analyzing[error.id] ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Eye className="w-3 h-3 mr-1" />
+                                  )}
+                                  Analyze
+                                </Button>
+                                <Button 
+                                  size="sm"
+                                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                                  onClick={(e) => { e.stopPropagation(); handleAutonomousFix(error.id); }}
+                                  disabled={autonomousFixing[error.id]}
+                                  data-testid={`autonomous-fix-btn-${error.id}`}
+                                >
+                                  {autonomousFixing[error.id] ? (
+                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                  ) : (
+                                    <Sparkles className="w-3 h-3 mr-1" />
+                                  )}
+                                  AI Fix
+                                </Button>
+                              </>
+                            )}
+                            {!error.auto_fixable && !error.fixed && (
+                              <Button 
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => { e.stopPropagation(); handleAnalyze(error.id); }}
+                                disabled={analyzing[error.id]}
+                                data-testid={`analyze-btn-${error.id}`}
+                              >
+                                {analyzing[error.id] ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Brain className="w-3 h-3 mr-1" />
+                                )}
+                                Analyze
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CollapsibleTrigger>
+                      
+                      <CollapsibleContent>
+                        <div className="px-4 pb-4 space-y-2 border-t">
+                          <div className="grid grid-cols-2 gap-4 mt-3">
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground">File Path</p>
+                              <p className="text-sm font-mono bg-accent p-2 rounded truncate">{error.file_path}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground">Detected At</p>
+                              <p className="text-sm">{new Date(error.timestamp).toLocaleString()}</p>
+                            </div>
+                          </div>
+                          {error.suggested_fix && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground">Suggested Fix</p>
+                              <p className="text-sm bg-blue-500/10 p-2 rounded">{error.suggested_fix}</p>
+                            </div>
+                          )}
+                          {error.fix_applied_at && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground">Fix Applied At</p>
+                              <p className="text-sm text-green-600">{new Date(error.fix_applied_at).toLocaleString()}</p>
+                            </div>
+                          )}
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Scan History */}
+      {history.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="w-5 h-5" />
+              Scan History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {history.map((scan, idx) => (
+                <div key={scan.id || idx} className="flex items-center justify-between p-3 bg-accent rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">{new Date(scan.timestamp).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {scan.stats?.errors_detected > 0 && (
+                      <Badge variant="outline">{scan.stats.errors_detected} errors</Badge>
+                    )}
+                    {scan.stats?.auto_fixes_applied > 0 && (
+                      <Badge className="bg-green-500">{scan.stats.auto_fixes_applied} fixed</Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Fix History & Learnings */}
+      <Tabs defaultValue="fix-history" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="fix-history">
+            <Wrench className="w-4 h-4 mr-2" />
+            Fix History ({fixHistory.length})
+          </TabsTrigger>
+          <TabsTrigger value="learnings">
+            <BookOpen className="w-4 h-4 mr-2" />
+            Learnings ({learnings.length})
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="fix-history">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wrench className="w-5 h-5" />
+                Autonomous Fix History
+              </CardTitle>
+              <CardDescription>
+                History of all AI-applied code patches. You can rollback any fix if needed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {fixHistory.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Wrench className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p>No autonomous fixes applied yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {fixHistory.map((fix, idx) => (
+                    <div key={fix.id || idx} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant={fix.status === 'applied' ? 'default' : fix.status === 'rolled_back' ? 'secondary' : 'destructive'}>
+                            {fix.status}
+                          </Badge>
+                          {fix.verified && <Badge className="bg-green-500">Verified</Badge>}
+                          <span className="text-sm font-medium">{fix.change_type}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 truncate max-w-md">
+                          {fix.file_path}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {fix.applied_at && new Date(fix.applied_at).toLocaleString()}
+                        </p>
+                      </div>
+                      {fix.status === 'applied' && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleRollback(fix.id)}
+                        >
+                          <Undo2 className="w-3 h-3 mr-1" />
+                          Rollback
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="learnings">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5" />
+                AI Learnings
+              </CardTitle>
+              <CardDescription>
+                Patterns learned from successful fixes. The AI uses these to improve future fixes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {learnings.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Brain className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p>No learnings recorded yet. Apply some fixes to start learning!</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {learnings.map((learning, idx) => (
+                    <div key={learning.id || idx} className="p-3 border rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant="outline">{learning.error_category}</Badge>
+                        <Badge className="bg-blue-500">{Math.round(learning.confidence * 100)}% confidence</Badge>
+                      </div>
+                      <p className="text-sm font-medium">{learning.root_cause}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Fix type: {learning.fix_type} | Pattern: {learning.error_pattern}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Learned: {learning.learned_at && new Date(learning.learned_at).toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

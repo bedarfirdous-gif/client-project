@@ -1,0 +1,119 @@
+{
+  "summary": "Tested document upload feature for Employment Application Form and Employment Agreement. All features working: 4 document upload fields in Application Form (Aadhar, PAN, Qualification Certificate, Guardian Consent), Documents tab with checkboxes in Agreement form, backend upload endpoint working, and ANNEXURE A showing document status in PDF preview.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": [
+    "Backend: POST /api/employment-applications - Creates application successfully (returns ID)",
+    "Backend: POST /api/employment-applications/{id}/upload - Uploads Aadhar Card document (PDF)",
+    "Backend: POST /api/employment-applications/{id}/upload - Uploads PAN Card document (PNG)",
+    "Backend: POST /api/employment-applications/{id}/upload - Uploads Qualification Certificate (JPG)",
+    "Backend: POST /api/employment-applications/{id}/upload - Uploads Guardian Consent Letter (PDF)",
+    "Backend: GET /api/employment-applications/{id}/documents - Returns all 4 uploaded documents",
+    "Backend: POST /api/employment-applications/{id}/upload - Rejects invalid file type (TXT) with 400",
+    "Backend: POST /api/employment-agreements - Creates agreement with documents field",
+    "Backend: GET /api/employment-agreements/{id} - Returns agreement with documents field",
+    "Backend: PUT /api/employment-agreements/{id} - Updates documents checkboxes",
+    "Frontend: Employment Application Form has 'Upload Documents' section with header and description",
+    "Frontend: Aadhar Card upload field with 'Choose Aadhar Card' button visible",
+    "Frontend: PAN Card upload field with 'Choose PAN Card' button visible",
+    "Frontend: Qualification Certificate upload field with 'Choose Certificate' button visible",
+    "Frontend: Guardian/Father Consent Letter upload field with 'Choose Consent Letter' button visible",
+    "Frontend: Employment Agreements page loads with list of agreements",
+    "Frontend: New Agreement modal has 6 tabs: Company, Employee, Compensation, Terms, Penalty, Documents",
+    "Frontend: Documents tab shows 'Attached Documents Checklist' header",
+    "Frontend: Documents tab has 4 checkboxes for all document types",
+    "Frontend: Agreement Preview modal shows full agreement content",
+    "Frontend: ANNEXURE A: ATTACHED DOCUMENTS section visible in PDF preview",
+    "Frontend: Documents table shows S.No, Document Type, Status columns",
+    "Frontend: Document status shows ✓ Submitted for submitted documents"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_employment_documents.py",
+    "/app/test_reports/pytest/employment_doc_upload_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "Good: EmploymentApplicationForm.js has dedicated Upload Documents section (lines 830-955)",
+    "Good: File type validation on frontend (PDF, JPG, PNG allowed, max 5MB)",
+    "Good: Backend upload endpoint properly validates content_type and stores in /app/uploads/applications/{id}/",
+    "Good: EmploymentAgreementsPage.js has Documents tab with checkboxes (lines 1291-1367)",
+    "Good: Agreement PDF template includes ANNEXURE A showing document status (lines 607-645)",
+    "Good: Documents stored both as files and with metadata in application_documents collection"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_employment_documents.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (10/10 pytest tests passed)",
+    "frontend": "100% (All UI elements verified)"
+  },
+
+  "test_credentials": {
+    "superadmin": {"email": "superadmin@bijnisbooks.com", "password": "admin123"}
+  },
+
+  "seed_data_creation": "Created test application 'TEST_Document_Upload_User' and test agreement with documents",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Document upload feature for Employment Application Form and Employment Agreement fully verified. Employment Application Form (via Employees page > Apps tab > New Application) has Upload Documents section with 4 file upload fields. Employment Agreement (via Employment Agreements page > New Agreement) has Documents tab with 4 checkboxes. Agreement PDF preview shows ANNEXURE A with document status table. Backend endpoints /api/employment-applications/{id}/upload and /api/employment-applications/{id}/documents working correctly.",
+
+  "verified_features": {
+    "employment_application_form": {
+      "status": "WORKING",
+      "location": "Employees page > Apps tab > New Application",
+      "upload_documents_section": {
+        "header": "Upload Documents",
+        "description": "Upload Aadhar Card, PAN Card, Qualification Certificate, and Guardian Consent Letter (PDF, JPG, PNG - Max 5MB each)",
+        "fields": [
+          {"name": "Aadhar Card", "button": "Choose Aadhar Card"},
+          {"name": "PAN Card", "button": "Choose PAN Card"},
+          {"name": "Qualification Certificate", "button": "Choose Certificate"},
+          {"name": "Guardian/Father Consent Letter", "button": "Choose Consent Letter"}
+        ]
+      }
+    },
+    "employment_agreement_form": {
+      "status": "WORKING",
+      "location": "Employment Agreements page > New Agreement",
+      "documents_tab": {
+        "tab_name": "Documents",
+        "header": "Attached Documents Checklist",
+        "description": "Mark the documents that have been submitted by the employee. This will be included in the agreement PDF.",
+        "checkboxes": [
+          {"name": "Aadhar Card", "description": "Government ID proof"},
+          {"name": "PAN Card", "description": "Tax identification"},
+          {"name": "Qualification Certificate", "description": "Educational/professional certificates"},
+          {"name": "Guardian/Father Consent Letter", "description": "Signed consent from guardian"}
+        ]
+      }
+    },
+    "pdf_preview": {
+      "status": "WORKING",
+      "annexure_section": "ANNEXURE A: ATTACHED DOCUMENTS",
+      "document_status_table": "Shows S.No, Document Type, Status columns with ✓ Submitted for submitted docs"
+    },
+    "backend_endpoints": {
+      "upload_document": "POST /api/employment-applications/{id}/upload - working",
+      "get_documents": "GET /api/employment-applications/{id}/documents - working",
+      "file_storage": "/app/uploads/applications/{application_id}/"
+    }
+  }
+}

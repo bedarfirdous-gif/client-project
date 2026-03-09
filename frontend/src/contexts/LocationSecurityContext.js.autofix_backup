@@ -1,0 +1,348 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
+
+const LocationSecurityContext = createContext();
+
+export const useLocationSecurity = () => useContext(LocationSecurityContext);
+
+// Calculate distance between two coordinates using Haversine formula
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Distance in km
+};
+
+// Reverse geocode to get address name
+const getLocationName = async (latitude, longitude) => {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    const data = await response.json();
+    if (data.display_name) {
+      // Return a shorter version of the address
+      const parts = data.display_name.split(',');
+      return parts.slice(0, 3).join(', ');
+    }
+    return null;
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    return null;
+  }
+};
+
+export function LocationSecurityProvider({ children, api, userRole = 'staff' }) {
+  const [storeLocation, setStoreLocation] = useState(null);
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [currentLocationName, setCurrentLocationName] = useState(null);
+  const [storeLocationName, setStoreLocationName] = useState(null);
+  const [isOutsideStore, setIsOutsideStore] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const [securityAlerts, setSecurityAlerts] = useState([]);
+  const [locationEnabled, setLocationEnabled] = useState(true);
+  const isAdmin = userRole === 'admin' || userRole === 'owner';
+  
+  // Max allowed distance from store in km
+  const MAX_DISTANCE_KM = parseFloat(localStorage.getItem('maxStoreDistance') || '0.5');
+  
+  // Load store location from localStorage or set default
+  useEffect(() => {
+    const savedLocation = localStorage.getItem('storeLocation');
+    if (savedLocation) {
+      const loc = JSON.parse(savedLocation);
+      setStoreLocation(loc);
+      setStoreLocationName(loc.name || null);
+    }
+  }, []);
+  
+  // Get current location
+  const getCurrentLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser');
+      return;
+    }
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const location = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: new Date().toISOString()
+        };
+        setCurrentLocation(location);
+        setLocationError(null);
+        
+        // Get location name
+        const locationName = await getLocationName(location.latitude, location.longitude);
+        if (locationName) {
+          setCurrentLocationName(locationName);
+          location.name = locationName;
+        }
+        
+        // Check if outside store
+        if (storeLocation) {
+          const distance = calculateDistance(
+            storeLocation.latitude,
+            storeLocation.longitude,
+            location.latitude,
+            location.longitude
+          );
+          
+          const outside = distance > MAX_DISTANCE_KM;
+          setIsOutsideStore(outside);
+          
+          if (outside) {
+            triggerSecurityAlert({
+              type: 'location_outside_store',
+              message: `App accessed ${distance.toFixed(2)}km away from store${locationName ? ` at ${locationName}` : ''}`,
+              distance: distance,
+              location: location,
+              locationName: locationName,
+              severity: distance > 1 ? 'high' : 'medium'
+            });
+          }
+        }
+      },
+      (error) => {
+        setLocationError(error.message);
+        console.error('Location error:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
+      }
+    );
+  }, [storeLocation, MAX_DISTANCE_KM, currentLocationName]);
+  
+  // Set store location (call this to save current location as store)
+  const setAsStoreLocation = useCallback(async () => {
+    if (currentLocation) {
+      const locationName = currentLocationName || await getLocationName(currentLocation.latitude, currentLocation.longitude);
+      const newStoreLocation = {
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        name: locationName,
+        setAt: new Date().toISOString()
+      };
+      setStoreLocation(newStoreLocation);
+      setStoreLocationName(locationName);
+      localStorage.setItem('storeLocation', JSON.stringify(newStoreLocation));
+      toast.success(`Store location saved! ${locationName || ''}`);
+      return true;
+    }
+    toast.error('Unable to get current location');
+    return false;
+  }, [currentLocation, currentLocationName]);
+  
+  // Trigger security alert - Only show popups to admin
+  const triggerSecurityAlert = useCallback(async (alertData) => {
+    const alert = {
+      id: Date.now(),
+      ...alertData,
+      timestamp: new Date().toISOString(),
+      acknowledged: false
+    };
+    
+    setSecurityAlerts(prev => [alert, ...prev].slice(0, 50));
+    
+    // Show popup notification - ONLY TO ADMIN
+    if (isAdmin) {
+      if (alertData.severity === 'high') {
+        toast.error(`🚨 SECURITY ALERT: ${alertData.message}`, {
+          duration: 10000,
+          action: {
+            label: 'View',
+            onClick: () => window.location.href = '/security-center'
+          }
+        });
+      } else {
+        toast.warning(`⚠️ ${alertData.message}`, {
+          duration: 5000
+        });
+      }
+    }
+    
+    // Send to backend - always log for admin to see
+    if (api) {
+      try {
+        await api('/api/security-alerts', {
+          method: 'POST',
+          body: JSON.stringify({
+            alert_type: alertData.type,
+            message: alertData.message,
+            severity: alertData.severity,
+            metadata: {
+              distance: alertData.distance,
+              location: alertData.location,
+              locationName: alertData.locationName
+            }
+          })
+        });
+      } catch (err) {
+        console.error('Failed to save security alert:', err);
+      }
+    }
+  }, [api, isAdmin]);
+  
+  // Request location permission immediately when app opens
+  useEffect(() => {
+    // Request permission on mount - delayed to avoid UI disturbance on login page
+    const permissionTimeout = setTimeout(() => {
+      if (navigator.permissions) {
+        navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+          if (result.state === 'prompt') {
+            // Show a toast to explain why we need location
+            toast.info('📍 Please allow location access for store security features', {
+              duration: 5000,
+            });
+          }
+        });
+      }
+    }, 2000); // Delay 2 seconds to let the page load first
+    
+    // Try to get location immediately
+    if (locationEnabled) {
+      getCurrentLocation();
+    }
+    
+    return () => clearTimeout(permissionTimeout);
+  }, []); // Run once on mount
+  
+  // Start location monitoring
+  useEffect(() => {
+    if (locationEnabled) {
+      // Check location every 5 minutes
+      const interval = setInterval(getCurrentLocation, 5 * 60 * 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [locationEnabled, getCurrentLocation]);
+  
+  // Acknowledge alert
+  const acknowledgeAlert = useCallback((alertId) => {
+    setSecurityAlerts(prev => 
+      prev.map(alert => 
+        alert.id === alertId ? { ...alert, acknowledged: true } : alert
+      )
+    );
+  }, []);
+  
+  // Clear all alerts
+  const clearAlerts = useCallback(() => {
+    setSecurityAlerts([]);
+  }, []);
+  
+  const value = {
+    storeLocation,
+    storeLocationName,
+    currentLocation,
+    currentLocationName,
+    isOutsideStore,
+    locationError,
+    securityAlerts,
+    locationEnabled,
+    setLocationEnabled,
+    getCurrentLocation,
+    setAsStoreLocation,
+    triggerSecurityAlert,
+    acknowledgeAlert,
+    clearAlerts,
+    MAX_DISTANCE_KM,
+    isAdmin
+  };
+  
+  return (
+    <LocationSecurityContext.Provider value={value}>
+      {children}
+    </LocationSecurityContext.Provider>
+  );
+}
+
+// Location Security Badge Component
+export function LocationSecurityBadge() {
+  const { isOutsideStore, currentLocation, currentLocationName, storeLocation, locationError } = useLocationSecurity();
+  
+  // Don't show anything if there's a location error - it's not critical for business operations
+  if (locationError) {
+    return null;
+  }
+  
+  if (!storeLocation) {
+    return null; // Don't show badge if store location not configured
+  }
+  
+  if (isOutsideStore) {
+    return (
+      <div className="flex items-center gap-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded-full animate-pulse">
+        <span className="w-2 h-2 rounded-full bg-red-500" />
+        Outside Store Area
+      </div>
+    );
+  }
+  
+  return (
+    <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+      <span className="w-2 h-2 rounded-full bg-green-500" />
+      In Store
+    </div>
+  );
+}
+
+// Security Alert Popup Component - Only visible to Admin
+export function SecurityAlertPopup() {
+  const { securityAlerts, acknowledgeAlert, isAdmin } = useLocationSecurity();
+  const unacknowledgedAlerts = securityAlerts.filter(a => !a.acknowledged);
+  
+  // Only show to admin users
+  if (!isAdmin || unacknowledgedAlerts.length === 0) return null;
+  
+  const latestAlert = unacknowledgedAlerts[0];
+  
+  return (
+    <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+      <div className={`rounded-lg shadow-lg p-4 ${
+        latestAlert.severity === 'high' 
+          ? 'bg-red-600 text-white' 
+          : 'bg-amber-500 text-white'
+      }`}>
+        <div className="flex items-start gap-3">
+          <div className="text-2xl">
+            {latestAlert.severity === 'high' ? '🚨' : '⚠️'}
+          </div>
+          <div className="flex-1">
+            <h4 className="font-bold text-sm">
+              {latestAlert.severity === 'high' ? 'SECURITY ALERT' : 'Warning'}
+            </h4>
+            <p className="text-sm opacity-90 mt-1">{latestAlert.message}</p>
+            {latestAlert.locationName && (
+              <p className="text-xs opacity-80 mt-1">📍 {latestAlert.locationName}</p>
+            )}
+            <p className="text-xs opacity-75 mt-2">
+              {new Date(latestAlert.timestamp).toLocaleTimeString()}
+            </p>
+          </div>
+          <button 
+            onClick={() => acknowledgeAlert(latestAlert.id)}
+            className="text-white/80 hover:text-white text-xl"
+          >
+            ×
+          </button>
+        </div>
+        {unacknowledgedAlerts.length > 1 && (
+          <p className="text-xs opacity-75 mt-2 text-center">
+            +{unacknowledgedAlerts.length - 1} more alerts
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

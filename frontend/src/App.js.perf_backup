@@ -1,0 +1,1701 @@
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { Toaster, toast } from 'sonner';
+import { 
+  LayoutDashboard, Package, Users, Store, Truck, Receipt, 
+  UserCircle, Clock, Wallet, Settings, LogOut, Menu, X,
+  ShoppingCart, RotateCcw, Tags, BadgePercent, Building2, ChevronDown, BookOpen,
+  FileText, ClipboardList, DollarSign, TrendingUp, Heart, BarChart3, ShoppingBag,
+  Sun, Moon, MapPin, Wifi, WifiOff, Lock, Shield, Database, FileSignature, Wrench, Shirt, MessageSquare, CreditCard, Video, Image, Brain, Upload, Eye, Calculator, Sparkles, Activity, Trash2, Scan, Globe, Layers, Banknote, Keyboard, Zap, Bug, Gauge, IndianRupee, Cpu, Barcode, FolderTree, UserCheck, Printer, Bot
+} from 'lucide-react';
+import { CurrencyProvider } from './contexts/CurrencyContext';
+import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
+import { PermissionProvider, usePermissions } from './contexts/PermissionContext';
+import { Button } from './components/ui/button';
+import { ReAuthProvider, useReAuth } from './components/ReAuthProvider';
+
+// Lazy load heavy components to reduce initial bundle
+const StockAlertsBell = lazy(() => import('./components/StockAlertsBell'));
+const MobileBottomNav = lazy(() => import('./components/MobileBottomNav'));
+const PWAInstallPrompt = lazy(() => import('./components/PWAInstallPrompt'));
+const SystemRepairDialog = lazy(() => import('./components/SystemRepair').then(m => ({ default: m.default })));
+
+// Import CartSidebar directly (needed for CartButton which is used in header)
+import CartSidebar, { CartButton } from './components/CartSidebar';
+import MyProfileButton from './components/MyProfileButton';
+
+// Lazy load context providers that aren't needed immediately
+const LocationSecurityProvider = lazy(() => import('./contexts/LocationSecurityContext').then(m => ({ default: m.LocationSecurityProvider })));
+const OfflineProvider = lazy(() => import('./contexts/OfflineContext').then(m => ({ default: m.OfflineProvider })));
+
+// Import hooks directly (they're small)
+import { useOffline, OfflineIndicator } from './contexts/OfflineContext';
+import { LocationSecurityBadge, SecurityAlertPopup } from './contexts/LocationSecurityContext';
+import { SystemHealthIndicator, SystemUtils } from './components/SystemRepair';
+
+const PublicCatalogue = lazy(() => import('./pages/PublicCatalogue'));
+const StorefrontPage = lazy(() => import('./pages/StorefrontPage'));
+const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage'));
+const CustomerStorePage = lazy(() => import('./pages/CustomerStorePage'));
+
+// Code-split loading fallback
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+  </div>
+);
+// Initialize error reporter for automatic error tracking
+import './utils/errorReporter';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Check if current path is public catalogue or storefront
+const isPublicPage = () => {
+  const path = window.location.pathname;
+  return path === '/catalogue' || 
+         path === '/catalog' || 
+         path.startsWith('/store/');
+};
+
+// Check if current path is public catalogue
+const isPublicCatalogue = () => {
+  return window.location.pathname === '/catalogue' || window.location.pathname === '/catalog';
+};
+
+// Check if current path is storefront
+const isStorefront = () => {
+  return window.location.pathname.startsWith('/store/');
+};
+
+// Theme Context
+const ThemeContext = createContext(null);
+
+export const useTheme = () => useContext(ThemeContext);
+
+// Color Theme definitions for global access
+const COLOR_THEMES = {
+  'default': {
+    '--background': '0 0% 100%',
+    '--foreground': '222.2 84% 4.9%',
+    '--card': '0 0% 100%',
+    '--card-foreground': '222.2 84% 4.9%',
+    '--primary': '221.2 83.2% 53.3%',
+    '--primary-foreground': '210 40% 98%',
+    '--secondary': '210 40% 96.1%',
+    '--accent': '210 40% 96.1%',
+    '--muted': '210 40% 96.1%',
+    '--muted-foreground': '215.4 16.3% 46.9%',
+    '--border': '214.3 31.8% 91.4%',
+    '--sidebar-bg': '221.2 83.2% 53.3%',
+    '--header-bg': '0 0% 100%',
+  },
+  'ocean-blue': {
+    '--background': '200 50% 98%',
+    '--foreground': '200 50% 11%',
+    '--card': '0 0% 100%',
+    '--card-foreground': '200 50% 11%',
+    '--primary': '199 89% 48%',
+    '--primary-foreground': '0 0% 100%',
+    '--secondary': '200 95% 93%',
+    '--accent': '200 95% 93%',
+    '--muted': '200 32% 91%',
+    '--muted-foreground': '200 16% 47%',
+    '--border': '200 32% 91%',
+    '--sidebar-bg': '199 89% 35%',
+    '--header-bg': '0 0% 100%',
+  },
+  'forest-green': {
+    '--background': '120 30% 98%',
+    '--foreground': '120 30% 11%',
+    '--card': '0 0% 100%',
+    '--card-foreground': '120 30% 11%',
+    '--primary': '142 76% 36%',
+    '--primary-foreground': '0 0% 100%',
+    '--secondary': '120 35% 93%',
+    '--accent': '120 35% 93%',
+    '--muted': '120 20% 91%',
+    '--muted-foreground': '120 10% 47%',
+    '--border': '120 20% 91%',
+    '--sidebar-bg': '142 76% 28%',
+    '--header-bg': '0 0% 100%',
+  },
+  'purple-gradient': {
+    '--background': '270 50% 98%',
+    '--foreground': '270 50% 11%',
+    '--card': '0 0% 100%',
+    '--card-foreground': '270 50% 11%',
+    '--primary': '262 83% 58%',
+    '--primary-foreground': '0 0% 100%',
+    '--secondary': '270 95% 93%',
+    '--accent': '270 95% 93%',
+    '--muted': '270 32% 91%',
+    '--muted-foreground': '270 16% 47%',
+    '--border': '270 32% 91%',
+    '--sidebar-bg': '262 83% 40%',
+    '--header-bg': '0 0% 100%',
+  },
+  'dark-mode': {
+    '--background': '222.2 84% 4.9%',
+    '--foreground': '210 40% 98%',
+    '--card': '222.2 84% 8%',
+    '--card-foreground': '210 40% 98%',
+    '--primary': '217.2 91.2% 59.8%',
+    '--primary-foreground': '222.2 84% 4.9%',
+    '--secondary': '217.2 32.6% 17.5%',
+    '--accent': '217.2 32.6% 17.5%',
+    '--muted': '217.2 32.6% 17.5%',
+    '--muted-foreground': '215 20.2% 65.1%',
+    '--border': '217.2 32.6% 17.5%',
+    '--sidebar-bg': '222.2 84% 6%',
+    '--header-bg': '222.2 84% 8%',
+  },
+  'sunset-orange': {
+    '--background': '30 50% 98%',
+    '--foreground': '30 50% 11%',
+    '--card': '0 0% 100%',
+    '--card-foreground': '30 50% 11%',
+    '--primary': '25 95% 53%',
+    '--primary-foreground': '0 0% 100%',
+    '--secondary': '30 95% 93%',
+    '--accent': '30 95% 93%',
+    '--muted': '30 32% 91%',
+    '--muted-foreground': '30 16% 47%',
+    '--border': '30 32% 91%',
+    '--sidebar-bg': '25 95% 25%',
+    '--header-bg': '0 0% 100%',
+  },
+  'india-tricolor': {
+    '--background': '0 0% 99%',
+    '--foreground': '150 80% 15%',
+    '--card': '0 0% 100%',
+    '--card-foreground': '150 80% 15%',
+    '--primary': '150 89% 22%',
+    '--primary-foreground': '0 0% 100%',
+    '--secondary': '24 100% 93%',
+    '--accent': '24 100% 56%',
+    '--muted': '150 20% 95%',
+    '--muted-foreground': '150 20% 40%',
+    '--border': '150 20% 90%',
+    '--sidebar-bg': '150 89% 18%',
+    '--header-bg': '24 100% 56%',
+  },
+  'retail-purple': {
+    '--background': '240 20% 10%',
+    '--foreground': '0 0% 95%',
+    '--card': '240 20% 13%',
+    '--card-foreground': '0 0% 95%',
+    '--primary': '262 83% 58%',
+    '--primary-foreground': '0 0% 100%',
+    '--secondary': '240 20% 18%',
+    '--accent': '187 94% 48%',
+    '--muted': '240 20% 20%',
+    '--muted-foreground': '240 10% 60%',
+    '--border': '240 20% 20%',
+    '--sidebar-bg': '240 20% 8%',
+    '--header-bg': '240 20% 13%',
+  }
+};
+
+// Apply saved color theme on initial load (before React renders)
+const applyInitialColorTheme = () => {
+  const savedTheme = localStorage.getItem('colorTheme') || 'default';
+  const themeColors = COLOR_THEMES[savedTheme];
+  if (themeColors) {
+    const root = document.documentElement;
+    Object.entries(themeColors).forEach(([key, value]) => {
+      root.style.setProperty(key, value);
+    });
+    if (savedTheme === 'dark-mode' || savedTheme === 'retail-purple') {
+      root.classList.add('dark');
+    }
+  }
+};
+
+// Apply theme immediately on script load
+applyInitialColorTheme();
+
+const ThemeProvider = ({ children }) => {
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved || 'light';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+
+// Auth Context
+const AuthContext = createContext(null);
+
+export const useAuth = () => useContext(AuthContext);
+
+const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [interval, setInterval] = useState(false);
+  const [timeout, setTimeout] = useState(false);
+  const [item, setItem] = useState(false);
+  const [property, setProperty] = useState(false);
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  // Only show loading if there's a token to verify
+  // This prevents the blinking spinner when there's no token
+  const [loading, setLoading] = useState(!!localStorage.getItem('token'));
+  const [isImpersonating, setIsImpersonating] = useState(!!localStorage.getItem('originalToken'));
+  const initialCheckDone = React.useRef(false);
+  const isLoggingOut = React.useRef(false);
+  const isLoggingIn = React.useRef(false);
+  const refreshIntervalRef = React.useRef(null);
+  const tokenRefreshInitialized = React.useRef(false);
+
+  // Check for impersonation on load
+  useEffect(() => {
+    const originalToken = localStorage.getItem('originalToken');
+    setIsImpersonating(!!originalToken);
+  }, []);
+
+  const logout = useCallback(() => {
+    // Prevent logout during login only
+    if (isLoggingIn.current) return;
+    
+    // Reset logout flag immediately to prevent stuck state
+    isLoggingOut.current = true;
+    tokenRefreshInitialized.current = false;
+    
+    // Clear storage first
+    localStorage.removeItem('token');
+    localStorage.removeItem('originalToken');
+    localStorage.removeItem('originalUser');
+    sessionStorage.clear();
+    
+    // Then update state
+    setToken(null);
+    setUser(null);
+    setIsImpersonating(false);
+    
+    // Reset flag after short delay
+    setTimeout(() => {
+      isLoggingOut.current = false;
+    }, 500);
+    
+    // Force reload to login page
+    window.location.href = '/';
+  }, []);
+
+  // Return to Super Admin from impersonation
+  const returnFromImpersonation = useCallback(() => {
+    const originalToken = localStorage.getItem('originalToken');
+    const originalUserJson = localStorage.getItem('originalUser');
+    
+    if (originalToken && originalUserJson) {
+      try {
+        const originalUser = JSON.parse(originalUserJson);
+        // Restore original super admin session
+        localStorage.setItem('token', originalToken);
+        localStorage.removeItem('originalToken');
+        localStorage.removeItem('originalUser');
+        setToken(originalToken);
+        setUser(originalUser);
+        setIsImpersonating(false);
+        toast.success('Returned to Super Admin session');
+        return true;
+      } catch (err) {
+        console.error('Failed to restore session:', err);
+        toast.error('Failed to return to Super Admin');
+        return false;
+      }
+    }
+    return false;
+  }, []);
+
+  // Start impersonation
+  const startImpersonation = useCallback((newToken, newUser) => {
+    // Store current super admin credentials
+    const currentToken = localStorage.getItem('token');
+    const currentUser = user;
+    
+    if (currentUser?.role === 'superadmin' && currentToken) {
+      localStorage.setItem('originalToken', currentToken);
+      localStorage.setItem('originalUser', JSON.stringify(currentUser));
+    }
+    
+    // Switch to impersonated user
+    localStorage.setItem('token', newToken);
+    setToken(newToken);
+    setUser(newUser);
+    setIsImpersonating(true);
+  }, [user]);
+
+  const api = useCallback(async (endpoint, options = {}) => {
+    // Get fresh token from localStorage (in case it was updated by another tab)
+    const currentToken = localStorage.getItem('token');
+    
+    // Check if body is FormData - don't set Content-Type, let browser handle it
+    const isFormData = options.body instanceof FormData;
+    
+    const headers = {
+      ...(!isFormData && { 'Content-Type': 'application/json' }),
+      ...(currentToken && { 'Authorization': `Bearer ${currentToken}` }),
+      ...options.headers,
+    };
+
+    try {
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+
+      if (res.status === 401) {
+        // Check if this is an auth endpoint (login/register) - these should show actual error, not "session expired"
+        const isAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/register');
+        
+        if (isAuthEndpoint) {
+          // For auth endpoints, return the actual error message from backend
+          const err = await res.json().catch(() => ({ detail: 'Invalid credentials' }));
+          throw new Error(err.detail || 'Invalid credentials');
+        }
+        
+        // For other endpoints, only logout if not already logging out
+        if (!isLoggingOut.current) {
+          logout();
+        }
+        throw new Error('Session expired. Please login again.');
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: `Request failed with status ${res.status}` }));
+        throw new Error(err.detail || `Request failed with status ${res.status}`);
+      }
+
+      return res.json();
+    } catch (error) {
+      // Re-throw the error but don't logout on network errors
+      if (error.message !== 'Session expired' && error.name === 'TypeError') {
+        throw new Error('Network error. Please check your connection.');
+      }
+      throw error;
+    }
+  }, [logout]);
+
+  useEffect(() => {
+    // Only run initial auth check once
+    if (initialCheckDone.current) return;
+    initialCheckDone.current = true;
+    
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) {
+      // Verify token with backend
+      fetch(`${API_URL}/api/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${storedToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+        .then(res => {
+          if (!res.ok) {
+            throw new Error('Token invalid');
+          }
+          return res.json();
+        })
+        .then(userData => {
+          setUser(userData);
+          setToken(storedToken);
+        })
+        .catch((err) => {
+          // Token is invalid, clean up silently - don't show error toast
+          // This happens when user returns to app with expired token
+          console.log('Initial auth check failed (token expired), clearing...');
+          // Clear invalid token
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  // Auto-refresh token to prevent session expiration
+  // Refresh every 20 hours (before 24-hour token expiry)
+  useEffect(() => {
+    // Only initialize token refresh once when user is logged in
+    if (tokenRefreshInitialized.current || !user || !token) return;
+    tokenRefreshInitialized.current = true;
+    
+    const refreshToken = async () => {
+      const currentToken = localStorage.getItem('token');
+      if (!currentToken || isLoggingOut.current) return;
+      
+      try {
+        const response = await fetch(`${API_URL}/api/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          localStorage.setItem('token', data.access_token);
+          // Don't call setToken here to avoid re-triggering this effect
+          console.log('Token refreshed successfully');
+        }
+      } catch (err) {
+        console.log('Token refresh failed:', err.message);
+      }
+    };
+
+    // Refresh token every 20 hours (72000000 ms)
+    refreshIntervalRef.current = setInterval(refreshToken, 20 * 60 * 60 * 1000);
+    
+    // Also refresh once on initial login (after a small delay)
+    setTimeout(refreshToken, 5000);
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, [user, token]);
+
+  const login = useCallback(async (email, password) => {
+    // Prevent multiple simultaneous login attempts
+    if (isLoggingIn.current) {
+      console.log('Login already in progress, skipping...');
+      return;
+    }
+    isLoggingIn.current = true;
+    
+    // Reset token refresh flag for new login
+    tokenRefreshInitialized.current = false;
+    
+    // Clear any existing invalid token before login attempt
+    localStorage.removeItem('token');
+    
+    try {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ detail: 'Login failed' }));
+        throw new Error(err.detail || 'Invalid credentials');
+      }
+      
+      const data = await response.json();
+      
+      // Store new token FIRST in localStorage
+      localStorage.setItem('token', data.access_token);
+      
+      // Clear crash log on successful login to prevent safe mode false positives
+      localStorage.removeItem('bijnisbooks_crash_log');
+      
+      // Reset the logging out flag if it was set
+      isLoggingOut.current = false;
+      
+      // Update state in a single batch - React will batch these together
+      // Setting both at once prevents intermediate renders with mismatched state
+      setToken(data.access_token);
+      setUser(data.user);
+      
+      return data.user;
+    } catch (error) {
+      // Clear any partial state on error
+      localStorage.removeItem('token');
+      setToken(null);
+      setUser(null);
+      throw error;
+    } finally {
+      isLoggingIn.current = false;
+    }
+  }, []);
+
+  const register = useCallback(async (email, password, name) => {
+    const data = await api('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, name }),
+    });
+    return data;
+  }, [api]);
+
+  // Memoize context value to prevent unnecessary re-renders  
+  const authValue = useMemo(() => ({
+    user,
+    token,
+    loading,
+    login,
+    register,
+    logout,
+    api,
+    isImpersonating,
+    returnFromImpersonation,
+    startImpersonation
+  }), [user, token, loading, login, register, logout, api, isImpersonating, returnFromImpersonation, startImpersonation]);
+
+  return (
+    <AuthContext.Provider value={authValue}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Pages imports - Using React.lazy for performance optimization
+const LoginPage = lazy(() => import('./pages/LoginPage'));  // Keep login sync for fast initial load
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));  // Keep dashboard sync for fast load after login
+
+// Lazy load all other pages for better performance
+const ItemsPage = React.lazy(() => import('./pages/ItemsPage'));
+const InventoryPage = React.lazy(() => import('./pages/InventoryPage'));
+const StoresPage = React.lazy(() => import('./pages/StoresPage'));
+const CustomersPage = React.lazy(() => import('./pages/CustomersPage'));
+const SuppliersPage = React.lazy(() => import('./pages/SuppliersPage'));
+const EmployeesPage = React.lazy(() => import('./pages/EmployeesPage'));
+const EmployeeProfilePage = React.lazy(() => import('./pages/EmployeeProfilePage'));
+const UserManagementPage = React.lazy(() => import('./pages/UserManagementPage'));
+const AttendancePage = React.lazy(() => import('./pages/AttendancePage'));
+const DailyAttendancePage = React.lazy(() => import('./pages/DailyAttendancePage'));
+const MonthlyAttendanceSheet = React.lazy(() => import('./pages/MonthlyAttendanceSheet'));
+const CentralizedAttendancePage = React.lazy(() => import('./pages/CentralizedAttendancePage'));
+const DocumentVerificationPage = React.lazy(() => import('./pages/DocumentVerificationPage'));
+const PayrollPage = React.lazy(() => import('./pages/PayrollPage'));
+const PayrollCalculatorPage = React.lazy(() => import('./pages/PayrollCalculatorPage'));
+const StockTransfersPage = React.lazy(() => import('./pages/StockTransfersPage'));
+const SalesPage = React.lazy(() => import('./pages/SalesPage'));
+const POSPage = React.lazy(() => import('./pages/POSPage'));
+const VouchersPage = React.lazy(() => import('./pages/VouchersPage'));
+const DiscountManagementPage = React.lazy(() => import('./pages/DiscountManagementPage'));
+const PurchaseInvoicesPage = React.lazy(() => import('./pages/PurchaseInvoicesPage'));
+const PurchaseOrdersPage = React.lazy(() => import('./pages/PurchaseOrdersPage'));
+const PurchaseReturnsPage = React.lazy(() => import('./pages/PurchaseReturnsPage'));
+const PurchaseReportsPage = React.lazy(() => import('./pages/PurchaseReportsPage'));
+const CustomerLedgerPage = React.lazy(() => import('./pages/CustomerLedgerPage'));
+const SupplierLedgerPage = React.lazy(() => import('./pages/SupplierLedgerPage'));
+const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
+const SecuritySettingsPage = React.lazy(() => import('./pages/SecuritySettingsPage'));
+const SmartScannerPage = React.lazy(() => import('./pages/SmartScannerPage'));
+const SalesReturnsPage = React.lazy(() => import('./pages/SalesReturnsPage'));
+const QuotationsPage = React.lazy(() => import('./pages/QuotationsPage'));
+const SalesOrdersPage = React.lazy(() => import('./pages/SalesOrdersPage'));
+import ActivityCenter from './components/ActivityCenter';
+import SecurityCenter from './components/SecurityCenter';
+import ThemeSelector from './components/ThemeSelector';
+const AnalyticsDashboardPage = React.lazy(() => import('./pages/AnalyticsDashboardPage'));
+const UploadHistoryPage = React.lazy(() => import('./pages/UploadHistoryPage'));
+const LoyaltyProgramPage = React.lazy(() => import('./pages/LoyaltyProgramPage'));
+const InvoiceSettingsPage = React.lazy(() => import('./pages/InvoiceSettingsPage'));
+const EmployeeRatingsPage = React.lazy(() => import('./pages/EmployeeRatingsPage'));
+const RBACPermissionsPage = React.lazy(() => import('./pages/RBACPermissionsPage'));
+const InvoicesPage = React.lazy(() => import('./pages/InvoicesPage'));
+const SalesDeliveryPage = React.lazy(() => import('./pages/SalesDeliveryPage'));
+const SalesReportsPage = React.lazy(() => import('./pages/SalesReportsPage'));
+const CRMPage = React.lazy(() => import('./pages/CRMPage'));
+const SalesDashboardPage = React.lazy(() => import('./pages/SalesDashboardPage'));
+const BackupRestorePage = React.lazy(() => import('./pages/BackupRestorePage'));
+const AccountingReportsPage = React.lazy(() => import('./pages/AccountingReportsPage'));
+const EmploymentAgreementsPage = React.lazy(() => import('./pages/EmploymentAgreementsPage'));
+const TaskManagementPage = React.lazy(() => import('./pages/TaskManagementPage'));
+const StockAuditTrailPage = React.lazy(() => import('./pages/StockAuditTrailPage'));
+const OrderHistoryPage = React.lazy(() => import('./pages/OrderHistoryPage'));
+const VirtualTrialRoomPage = React.lazy(() => import('./pages/VirtualTryOnPage'));
+const ConnectHubPage = React.lazy(() => import('./pages/ConnectHubPage'));
+const SecurityDashboard = React.lazy(() => import('./pages/SecurityDashboard'));
+const SuperAdminDashboard = React.lazy(() => import('./pages/SuperAdminDashboard'));
+const RBACAdminPage = React.lazy(() => import('./pages/RBACAdminPage'));
+const BillingPage = React.lazy(() => import('./pages/BillingPage'));
+const TrainingPage = React.lazy(() => import('./pages/TrainingPage'));
+const AutoPosterPage = React.lazy(() => import('./pages/AutoPosterPage'));
+const AIAgentPage = React.lazy(() => import('./pages/AIAgentPage'));
+const AIDashboardPage = React.lazy(() => import('./pages/AIDashboardPage'));
+const CustomerImportPage = React.lazy(() => import('./pages/CustomerImportPage'));
+const GSTMasterPage = React.lazy(() => import('./pages/GSTMasterPage'));
+const RecycleBinPage = React.lazy(() => import('./pages/RecycleBinPage'));
+const FaceAttendancePage = React.lazy(() => import('./pages/FaceAttendancePage'));
+const BarcodeAttendancePage = React.lazy(() => import('./pages/BarcodeAttendancePage'));
+const PrintingLabPage = React.lazy(() => import('./pages/PrintingLabPage'));
+const AutoHealDashboard = React.lazy(() => import('./pages/AutoHealDashboard'));
+const UIBlinkFixAgent = React.lazy(() => import('./pages/UIBlinkFixAgent'));
+const ErrorAutoFixAgent = React.lazy(() => import('./pages/ErrorAutoFixAgent'));
+const AIAgentsDashboard = React.lazy(() => import('./pages/AIAgentsDashboard'));
+const PerformanceAgent = React.lazy(() => import('./pages/PerformanceAgent'));
+const AgentCollaboration = React.lazy(() => import('./pages/AgentCollaboration'));
+const AgentControlCenter = React.lazy(() => import('./pages/AgentControlCenter'));
+const AIDeveloperPage = React.lazy(() => import('./pages/AIDeveloperPage'));
+const GSTAutomation = React.lazy(() => import('./pages/GSTAutomation'));
+const ExpenditurePage = React.lazy(() => import('./pages/ExpenditurePage'));
+const EcommercePage = React.lazy(() => import('./pages/EcommercePage'));
+const FabricCataloguePage = React.lazy(() => import('./pages/FabricCataloguePage'));
+const EmployeeLoanPage = React.lazy(() => import('./pages/EmployeeLoanPage'));
+const KeyboardShortcutsPage = React.lazy(() => import('./pages/KeyboardShortcutsPage'));
+const StockReceiverPage = React.lazy(() => import('./pages/StockReceiverPage'));
+const LedgerPage = React.lazy(() => import('./pages/LedgerPage'));
+const CentralAccountingPage = React.lazy(() => import('./pages/CentralAccountingPage'));
+const LedgerManagementPage = React.lazy(() => import('./pages/LedgerManagementPage'));
+const VoucherEntryPage = React.lazy(() => import('./pages/VoucherEntryPage'));
+const AccountingBooksPage = React.lazy(() => import('./pages/AccountingBooksPage'));
+const GSTReportsPage = React.lazy(() => import('./pages/GSTReportsPage'));
+import ShortcutsModal from './components/ShortcutsModal';
+import TallyShortcutBar from './components/TallyShortcutBar';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { PageSkeleton } from './components/Skeletons';
+
+// Loading spinner for lazy loaded components - using skeleton for better UX
+const PageLoadingSpinner = () => (
+  <PageSkeleton />
+);
+
+
+// Sidebar component
+const Sidebar = ({ currentPage, setCurrentPage, isOpen, setIsOpen }) => {
+  const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const { filterNavItems, hasPageAccess } = usePermissions();
+  const { t } = useLanguage();
+  
+  // Preload heavy pages on hover for faster navigation
+  const preloadedPages = React.useRef(new Set());
+  const preloadPage = React.useCallback((pageId) => {
+    if (preloadedPages.current.has(pageId)) return;
+    preloadedPages.current.add(pageId);
+    
+    // Dynamically import the page module to warm the cache
+    const preloadMap = {
+      'pos': () => import('./pages/POSPage'),
+      'employees': () => import('./pages/EmployeesPage'),
+      'items': () => import('./pages/ItemsPage'),
+      'inventory': () => import('./pages/InventoryPage'),
+      'purchases': () => import('./pages/PurchaseInvoicesPage'),
+      'sales': () => import('./pages/SalesPage'),
+      'customers': () => import('./pages/CustomersPage'),
+      'suppliers': () => import('./pages/SuppliersPage'),
+    };
+    
+    const preloader = preloadMap[pageId];
+    if (preloader) {
+      preloader().catch(() => {}); // Silently preload
+    }
+  }, []);
+  
+  // Super Admin Menu Items - FULL ACCESS TO ALL MODULES
+  const superAdminMenuItems = [
+    // Super Admin Specific
+    { id: 'superadmin-dashboard', label: 'Super Admin Dashboard', icon: LayoutDashboard },
+    { id: 'market-analytics', label: 'Market Analytics', icon: TrendingUp },
+    { id: 'subscriptions', label: 'All Subscriptions', icon: CreditCard },
+    { id: 'rbac-admin', label: 'RBAC Admin Panel', icon: Shield },
+    { id: 'autoheal', label: 'AutoHeal AI', icon: Activity },
+    { id: 'ai-developer', label: 'AI Senior Developer', icon: Bot },
+    { id: 'ui-blink-fix', label: 'UI Blink Fix Agent', icon: Zap },
+    { id: 'error-autofix', label: 'Error Auto-Fix Agent', icon: Bug },
+    { id: 'performance-agent', label: 'Performance Agent', icon: Gauge },
+    { id: 'agent-collaboration', label: 'Agent Collaboration', icon: Users },
+    { id: 'security-dashboard', label: 'Security Center', icon: Shield },
+    { id: 'ai-dashboard', label: 'AI Dashboard', icon: Brain },
+    
+    // Main Dashboard & Analytics
+    { type: 'divider', label: 'Main Dashboard' },
+    { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard },
+    { id: 'analytics', label: t('analytics'), icon: TrendingUp },
+    { id: 'pos', label: t('pos'), icon: ShoppingCart },
+    { id: 'items', label: t('items'), icon: Package },
+    { id: 'inventory', label: t('inventory'), icon: Building2 },
+    { id: 'transfers', label: t('stockTransfers'), icon: Truck },
+    { id: 'upload-history', label: t('uploadHistory'), icon: Clock },
+    { id: 'smart-scanner', label: t('smartScanner'), icon: Sparkles },
+    
+    // Sales Section
+    { type: 'divider', label: t('sales') },
+    { id: 'sales-dashboard', label: t('salesDashboard'), icon: BarChart3 },
+    { id: 'sales', label: 'Sales History', icon: Receipt },
+    { id: 'quotations', label: t('quotations'), icon: FileText },
+    { id: 'sales-orders', label: t('orders'), icon: ClipboardList },
+    { id: 'order-history', label: 'My Orders', icon: ShoppingBag },
+    { id: 'sales-invoices', label: t('invoices'), icon: Receipt },
+    { id: 'sales-pricing', label: t('pricing'), icon: DollarSign },
+    { id: 'sales-delivery', label: t('delivery'), icon: Truck },
+    { id: 'sales-returns', label: t('returns'), icon: RotateCcw },
+    { id: 'sales-reports', label: t('reports'), icon: TrendingUp },
+    { id: 'crm', label: t('crm'), icon: Heart },
+    
+    // E-Commerce Section
+    { type: 'divider', label: 'E-Commerce' },
+    { id: 'ecommerce', label: 'Online Store', icon: Globe },
+    
+    // Purchase Section
+    { type: 'divider', label: t('purchase') },
+    { id: 'purchases', label: t('purchases'), icon: ShoppingBag },
+    { id: 'purchase-orders', label: 'Purchase Orders', icon: ClipboardList },
+    { id: 'purchase-returns', label: t('purchaseReturns'), icon: RotateCcw },
+    { id: 'purchase-reports', label: t('purchaseReports'), icon: Receipt },
+    
+    // Parties & Ledger
+    { type: 'divider', label: t('partiesLedger') },
+    { id: 'customers', label: t('customers'), icon: Users },
+    { id: 'customer-ledger', label: t('customerLedger'), icon: BookOpen },
+    { id: 'suppliers', label: t('suppliers'), icon: Building2 },
+    { id: 'supplier-ledger', label: t('supplierLedger'), icon: BookOpen },
+    
+    // Finance & Expenses
+    { type: 'divider', label: 'Finance & Expenses' },
+    { id: 'ledger-management', label: 'Ledger Management', icon: FolderTree },
+    { id: 'voucher-entry', label: 'Voucher Entry', icon: FileText },
+    { id: 'accounting-books', label: 'Day/Cash/Bank Book', icon: BookOpen },
+    { id: 'trial-balance', label: 'Trial Balance', icon: Calculator },
+    { id: 'gst-reports', label: 'GST Reports', icon: IndianRupee },
+    { id: 'central-accounting', label: 'Central Accounting', icon: BookOpen },
+    { id: 'expenditure', label: 'Expenditure', icon: Wallet },
+    { id: 'ledger', label: 'Receipt & Payment Ledger', icon: BookOpen },
+    { id: 'accounting-reports', label: 'Accounting Reports', icon: BookOpen },
+    
+    // Discounts & Offers
+    { type: 'divider', label: t('discountsOffers') },
+    { id: 'vouchers', label: t('vouchers'), icon: BadgePercent },
+    { id: 'discounts', label: t('discountManager'), icon: Tags },
+    { id: 'loyalty', label: t('loyaltyProgram'), icon: Heart },
+    { id: 'stores', label: t('stores'), icon: Store },
+    
+    // HR Management
+    { type: 'divider', label: t('hrManagement') },
+    { id: 'employees', label: t('employees'), icon: UserCircle },
+    { id: 'employment-agreements', label: 'Employment Agreements', icon: FileSignature },
+    { id: 'document-verification', label: 'Document Verification', icon: Shield },
+    { id: 'task-management', label: 'Task Management', icon: ClipboardList },
+    { id: 'centralized-attendance', label: 'Centralized Attendance', icon: UserCheck },
+    { id: 'daily-attendance', label: 'Daily Attendance', icon: Clock },
+    { id: 'face-attendance', label: 'Face Attendance', icon: Scan },
+    { id: 'barcode-attendance', label: 'Barcode Attendance', icon: Barcode },
+    { id: 'attendance-sheet', label: 'Attendance Sheet', icon: Clock },
+    { id: 'attendance', label: t('attendance'), icon: Clock },
+    { id: 'employee-ratings', label: t('employeeRatings'), icon: TrendingUp },
+    { id: 'payroll', label: t('payroll'), icon: Wallet },
+    { id: 'salary-calculator', label: t('salaryCalculator'), icon: DollarSign },
+    { id: 'employee-loans', label: 'Employee Loans', icon: Banknote },
+    
+    // Settings Section
+    { type: 'divider', label: t('settings') },
+    { id: 'users', label: t('userManagement'), icon: Users },
+    { id: 'rbac-permissions', label: t('rbacPermissions'), icon: Shield },
+    { id: 'printing-lab', label: 'Printing Lab', icon: Printer },
+    { id: 'invoice-settings', label: t('invoiceSettings'), icon: FileText },
+    { id: 'backup-restore', label: 'Backup & Restore', icon: Database },
+    { id: 'recycle-bin', label: 'Recycle Bin', icon: Trash2 },
+    { id: 'billing', label: 'Billing & Plans', icon: CreditCard },
+    { id: 'gst-master', label: 'GST Master', icon: Calculator },
+    { id: 'gst-automation', label: 'GST Automation', icon: IndianRupee },
+    { id: 'security-settings', label: 'Security Settings', icon: Lock },
+    { id: 'settings', label: 'App Settings', icon: Settings },
+    
+    // Connect & Training
+    { type: 'divider', label: 'Connect & Training' },
+    { id: 'connect-hub', label: 'Connect Hub', icon: MessageSquare },
+    { id: 'training', label: 'Training Center', icon: Video },
+    
+    // Marketing & AI
+    { type: 'divider', label: 'Marketing & AI' },
+    { id: 'agent-control-center', label: 'Agent Control Center', icon: Cpu },
+    { id: 'ai-agents-dashboard', label: 'AI Control Center', icon: Sparkles },
+    { id: 'ai-agent', label: 'AI Business Agent', icon: Brain },
+    { id: 'auto-poster', label: 'Auto Poster Studio', icon: Image },
+    { id: 'customer-import', label: 'Customer Import', icon: Upload },
+    
+    // Extra Features
+    { type: 'divider', label: 'Extra Features' },
+    { id: 'virtual-tryon', label: 'Virtual Trial Room', icon: Shirt },
+    { id: 'fabric-catalogue', label: 'Fabric Catalogue', icon: Layers },
+    { id: 'stock-audit', label: 'Stock Audit Trail', icon: Clock },
+    { id: 'keyboard-shortcuts', label: 'Keyboard Shortcuts', icon: Keyboard },
+  ];
+  
+  const allMenuItems = [
+    { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard },
+    { id: 'analytics', label: t('analytics'), icon: TrendingUp },
+    { id: 'pos', label: t('pos'), icon: ShoppingCart },
+    { id: 'items', label: t('items'), icon: Package },
+    { id: 'inventory', label: t('inventory'), icon: Building2 },
+    { id: 'transfers', label: t('stockTransfers'), icon: Truck },
+    { id: 'stock-receiver', label: 'Stock Receiver', icon: Package },
+    { id: 'stock-audit', label: 'Stock Audit Trail', icon: Clock },
+    { id: 'upload-history', label: t('uploadHistory'), icon: Clock },
+    { id: 'smart-scanner', label: t('smartScanner'), icon: Sparkles },
+    { type: 'divider', label: t('sales') },
+    { id: 'sales-dashboard', label: t('salesDashboard'), icon: BarChart3 },
+    { id: 'sales', label: 'Sales History', icon: Receipt },
+    { id: 'quotations', label: t('quotations'), icon: FileText },
+    { id: 'sales-orders', label: t('orders'), icon: ClipboardList },
+    { id: 'order-history', label: 'My Orders', icon: ShoppingBag },
+    { id: 'virtual-tryon', label: 'Virtual Trial Room', icon: Shirt },
+    { id: 'sales-invoices', label: t('invoices'), icon: Receipt },
+    { id: 'sales-pricing', label: t('pricing'), icon: DollarSign },
+    { id: 'sales-delivery', label: t('delivery'), icon: Truck },
+    { id: 'sales-returns', label: t('returns'), icon: RotateCcw },
+    { id: 'sales-reports', label: t('reports'), icon: TrendingUp },
+    { id: 'crm', label: t('crm'), icon: Heart },
+    { type: 'divider', label: t('purchase') },
+    { id: 'purchases', label: t('purchases'), icon: ShoppingBag },
+    { id: 'purchase-orders', label: 'Purchase Orders', icon: ClipboardList },
+    { id: 'purchase-returns', label: t('purchaseReturns'), icon: RotateCcw },
+    { id: 'purchase-reports', label: t('purchaseReports'), icon: Receipt },
+    { type: 'divider', label: t('partiesLedger') },
+    { id: 'customers', label: t('customers'), icon: Users },
+    { id: 'customer-ledger', label: t('customerLedger'), icon: BookOpen },
+    { id: 'suppliers', label: t('suppliers'), icon: Building2 },
+    { id: 'supplier-ledger', label: t('supplierLedger'), icon: BookOpen },
+    { type: 'divider', label: t('discountsOffers') },
+    { id: 'vouchers', label: t('vouchers'), icon: BadgePercent },
+    { id: 'discounts', label: t('discountManager'), icon: Tags },
+    { id: 'loyalty', label: t('loyaltyProgram'), icon: Heart },
+    { id: 'stores', label: t('stores'), icon: Store },
+    { type: 'divider', label: t('hrManagement') },
+    { id: 'employees', label: t('employees'), icon: UserCircle },
+    { id: 'employment-agreements', label: 'Employment Agreements', icon: FileSignature },
+    { id: 'task-management', label: 'Task Management', icon: ClipboardList },
+    { id: 'daily-attendance', label: 'Daily Attendance', icon: Clock },
+    { id: 'attendance-sheet', label: 'Attendance Sheet', icon: Clock },
+    { id: 'face-attendance', label: 'Face Attendance', icon: Scan },
+    { id: 'attendance', label: t('attendance'), icon: Clock },
+    { id: 'employee-ratings', label: t('employeeRatings'), icon: TrendingUp },
+    { id: 'payroll', label: t('payroll'), icon: Wallet },
+    { id: 'salary-calculator', label: t('salaryCalculator'), icon: DollarSign },
+    { type: 'divider', label: 'Connect & Training' },
+    { id: 'connect-hub', label: 'Connect Hub', icon: MessageSquare },
+    { id: 'training', label: 'Training Center', icon: Video },
+    { type: 'divider', label: 'Marketing & AI' },
+    { id: 'agent-control-center', label: 'Agent Control Center', icon: Cpu },
+    { id: 'ai-agents-dashboard', label: 'AI Control Center', icon: Sparkles },
+    { id: 'ai-dashboard', label: 'AI Dashboard', icon: Brain },
+    { id: 'ai-agent', label: 'AI Business Agent', icon: Brain },
+    { id: 'auto-poster', label: 'Auto Poster Studio', icon: Image },
+    { id: 'customer-import', label: 'Customer Import', icon: Upload },
+    { id: 'ecommerce', label: 'Online Store', icon: Globe },
+    { type: 'divider', label: 'Extra Features' },
+    { id: 'virtual-tryon', label: 'Virtual Trial Room', icon: Shirt },
+    { id: 'fabric-catalogue', label: 'Fabric Catalogue', icon: Layers },
+    { id: 'stock-audit', label: 'Stock Audit Trail', icon: Clock },
+    { type: 'divider', label: 'Finance & Expenses' },
+    { id: 'ledger-management', label: 'Ledger Management', icon: FolderTree },
+    { id: 'voucher-entry', label: 'Voucher Entry', icon: FileText },
+    { id: 'accounting-books', label: 'Day/Cash/Bank Book', icon: BookOpen },
+    { id: 'central-accounting', label: 'Central Accounting', icon: BookOpen },
+    { id: 'expenditure', label: 'Expenditure', icon: Wallet },
+    { id: 'ledger', label: 'Receipt & Payment Ledger', icon: BookOpen },
+    { id: 'accounting-reports', label: 'Accounting Reports', icon: BookOpen },
+    { type: 'divider', label: t('settings') },
+    { id: 'gst-master', label: 'GST Master', icon: Calculator },
+    { id: 'users', label: t('userManagement'), icon: Users },
+    { id: 'rbac-permissions', label: t('rbacPermissions'), icon: Shield },
+    { id: 'invoice-settings', label: t('invoiceSettings'), icon: FileText },
+    { id: 'backup-restore', label: 'Backup & Restore', icon: Database },
+    { id: 'recycle-bin', label: 'Recycle Bin', icon: Trash2 },
+    { id: 'billing', label: 'Billing & Plans', icon: CreditCard },
+    { id: 'autoheal', label: 'AutoHeal AI', icon: Activity },
+    { id: 'ui-blink-fix', label: 'UI Blink Fix Agent', icon: Zap },
+    { id: 'error-autofix', label: 'Error Auto-Fix Agent', icon: Bug },
+    { id: 'performance-agent', label: 'Performance Agent', icon: Gauge },
+    { id: 'agent-collaboration', label: 'Agent Collaboration', icon: Users },
+    { id: 'security-dashboard', label: 'Security Center', icon: Shield },
+    { id: 'keyboard-shortcuts', label: 'Keyboard Shortcuts', icon: Keyboard },
+    { id: 'settings', label: t('settings'), icon: Settings },
+  ];
+
+  // Use Super Admin menu if user is superadmin
+  const baseMenuItems = user?.role === 'superadmin' ? superAdminMenuItems : allMenuItems;
+  
+  // Filter menu items based on user permissions
+  const menuItems = user?.role === 'superadmin' ? baseMenuItems : filterNavItems(baseMenuItems);
+
+  return (
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+      
+      <aside className={`
+        fixed top-0 left-0 z-50 h-full w-64 bg-card border-r border-border
+        transform transition-transform duration-200 ease-out
+        lg:translate-x-0 lg:static lg:z-0
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="p-4 border-b border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center">
+                  <span className="text-[8px] font-bold">
+                    <span className="text-white">b</span>
+                    <span className="text-orange-600">B</span>
+                  </span>
+                </div>
+                <div>
+                  <h1 className="text-sm font-bold tracking-tight">
+                    <span className="text-gray-800 dark:text-gray-200">bijn</span>
+                    <span className="text-orange-600">is</span>
+                    <span className="text-gray-800 dark:text-gray-200">b</span>
+                    <span className="text-orange-600">oo</span>
+                    <span className="text-gray-800 dark:text-gray-200">ks</span>
+                  </h1>
+                  <p className="text-[11px] text-gray-600 dark:text-gray-400 font-medium">घंटों का हिसाब, अब मिनटों में</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="lg:hidden p-1 hover:bg-accent rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+            {menuItems.map((item, idx) => {
+              if (item.type === 'divider') {
+                return (
+                  <div key={idx} className="pt-4 pb-2">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3">
+                      {item.label}
+                    </span>
+                  </div>
+                );
+              }
+              
+              const Icon = item.icon;
+              const isActive = currentPage === item.id;
+              
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setCurrentPage(item.id);
+                    setIsOpen(false);
+                  }}
+                  onMouseEnter={() => preloadPage(item.id)}
+                  data-testid={`nav-${item.id}`}
+                  className={`
+                    w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium
+                    transition-colors duration-150
+                    ${isActive 
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'text-foreground hover:bg-accent'
+                    }
+                  `}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* User section */}
+          <div className="p-3 border-t border-border space-y-2">
+            {/* Theme Toggle with Settings Icon */}
+            <button
+              onClick={toggleTheme}
+              data-testid="theme-toggle"
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-md bg-gradient-to-r from-indigo-500/10 to-purple-500/10 hover:from-indigo-500/20 hover:to-purple-500/20 border border-indigo-500/20 transition-all"
+            >
+              <div className="flex items-center gap-2">
+                <Settings className="w-4 h-4 text-indigo-500" />
+                <span className="text-sm font-medium">{t('theme')}</span>
+              </div>
+              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${theme === 'dark' ? 'bg-amber-500 text-white' : 'bg-slate-700 text-white'}`}>
+                {theme === 'light' ? <Moon className="w-3 h-3" /> : <Sun className="w-3 h-3" />}
+                {theme === 'light' ? t('light') : t('dark')}
+              </div>
+            </button>
+            
+            {/* User Info */}
+            <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-accent/50">
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{user?.name}</p>
+                <div className="flex items-center gap-1.5">
+                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                    user?.role === 'superadmin' ? 'bg-purple-100 text-purple-700' :
+                    user?.role === 'admin' ? 'bg-blue-100 text-blue-700' :
+                    user?.role === 'manager' ? 'bg-green-100 text-green-700' :
+                    user?.role === 'staff' ? 'bg-amber-100 text-amber-700' :
+                    user?.role === 'cashier' ? 'bg-orange-100 text-orange-700' :
+                    user?.role === 'viewer' ? 'bg-gray-100 text-gray-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {user?.role === 'superadmin' ? 'Super Admin' : 
+                     user?.role === 'viewer' ? 'View Only' : 
+                     user?.role?.charAt(0)?.toUpperCase() + user?.role?.slice(1)}
+                  </span>
+                  {user?.role === 'viewer' && (
+                    <Eye className="w-3 h-3 text-gray-500" />
+                  )}
+                </div>
+              </div>
+              <button 
+                onClick={logout}
+                data-testid="logout-btn"
+                className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-colors"
+                title={t('logout')}
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+};
+
+// Main Layout
+const MainLayout = ({ children, currentPage, setCurrentPage }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+  const { api, isImpersonating, returnFromImpersonation, user } = useAuth();
+  
+  // Listen for cart open event
+  useEffect(() => {
+    const handleOpenCart = () => setCartOpen(true);
+    window.addEventListener('open-cart', handleOpenCart);
+    return () => window.removeEventListener('open-cart', handleOpenCart);
+  }, []);
+  
+  const pageTitle = {
+    dashboard: 'Dashboard',
+    analytics: 'Analytics Dashboard',
+    pos: 'Point of Sale',
+    items: 'Items Management',
+    'smart-scanner': 'Smart Stock Scanner',
+    inventory: 'Inventory',
+    transfers: 'Stock Transfers',
+    'upload-history': 'Upload History',
+    'stock-audit': 'Stock Audit Trail',
+    sales: 'Sales History',
+    quotations: 'Quotations',
+    'sales-orders': 'Sales Orders',
+    'order-history': 'My Orders',
+    'virtual-tryon': 'Virtual Trial Room',
+    'sales-invoices': 'Invoices',
+    'sales-delivery': 'Delivery Management',
+    'sales-returns': 'Sales Returns',
+    'sales-reports': 'Sales Reports',
+    crm: 'CRM',
+    purchases: 'Purchase Invoices',
+    'purchase-orders': 'Purchase Orders',
+    'purchase-returns': 'Purchase Returns',
+    'purchase-reports': 'Purchase Reports',
+    customers: 'Customers',
+    'customer-ledger': 'Customer Ledger',
+    suppliers: 'Suppliers',
+    'supplier-ledger': 'Supplier Ledger',
+    vouchers: 'Vouchers',
+    discounts: 'Discount Manager',
+    loyalty: 'Loyalty Program',
+    stores: 'Stores',
+    employees: 'Employees',
+    'employment-agreements': 'Employment Agreements',
+    'task-management': 'Task Management',
+    users: 'User Management',
+    'rbac-permissions': 'RBAC Permissions',
+    'rbac-admin': 'RBAC Admin',
+    'autoheal': 'AutoHeal AI',
+    'ai-developer': 'AI Senior Developer',
+    'ui-blink-fix': 'UI Blink Fix Agent',
+    'error-autofix': 'Error Auto-Fix Agent',
+    'performance-agent': 'Performance Agent',
+    'agent-collaboration': 'Agent Collaboration',
+    'gst-automation': 'GST Automation',
+    'security-dashboard': 'Security Center',
+    'gst-master': 'GST Master',
+    'invoice-settings': 'Invoice Settings',
+    'ledger-management': 'Ledger Management',
+    'voucher-entry': 'Voucher Entry',
+    'accounting-books': 'Accounting Books',
+    'central-accounting': 'Central Accounting',
+    'accounting-reports': 'Accounting Reports',
+    'ledger': 'Receipt & Payment Ledger',
+    'backup-restore': 'Backup & Restore',
+    attendance: 'Attendance',
+    'employee-ratings': 'Employee Ratings',
+    payroll: 'Payroll',
+    'salary-calculator': 'Salary Calculator',
+    'connect-hub': 'Connect Hub',
+    training: 'Training Center',
+    'agent-control-center': 'Agent Control Center',
+    'ai-agents-dashboard': 'AI Control Center',
+    'ai-agent': 'AI Business Agent',
+    'ai-dashboard': 'AI Dashboard',
+    'auto-poster': 'Auto Poster Studio',
+    settings: 'Settings',
+  };
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar 
+        currentPage={currentPage} 
+        setCurrentPage={setCurrentPage}
+        isOpen={sidebarOpen}
+        setIsOpen={setSidebarOpen}
+      />
+      
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="glass-header sticky top-0 z-30 border-b border-border px-4 lg:px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden p-2 hover:bg-accent rounded-md"
+                data-testid="menu-toggle"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <h2 className="text-xl font-bold tracking-tight">{pageTitle[currentPage]}</h2>
+              <LocationSecurityBadge />
+            </div>
+            <div className="flex items-center gap-2">
+              {/* God Mode Return Button - Shows when impersonating */}
+              {isImpersonating && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={returnFromImpersonation}
+                  className="animate-pulse bg-red-600 hover:bg-red-700 text-white"
+                  data-testid="return-from-impersonation-btn"
+                >
+                  <RotateCcw className="w-4 h-4 mr-1" />
+                  Return to Super Admin
+                </Button>
+              )}
+              <MyProfileButton />
+              <SystemHealthIndicator onClick={() => window.dispatchEvent(new CustomEvent('open-system-repair'))} />
+              <StockAlertsBell api={api} />
+              <CartButton onClick={() => window.dispatchEvent(new CustomEvent('open-cart'))} />
+              <ThemeSelector />
+              <SecurityCenter />
+              <ActivityCenter />
+            </div>
+          </div>
+        </header>
+
+        {/* Content */}
+        <div className="flex-1 overflow-auto p-4 lg:p-6">
+          {children}
+        </div>
+      </main>
+      
+      {/* Cart Sidebar */}
+      <CartSidebar isOpen={cartOpen} onClose={() => setCartOpen(false)} />
+    </div>
+  );
+};
+
+// App component
+function App() {
+  const [currentPage, setCurrentPage] = useState('dashboard');
+  const location = useLocation();
+
+  // Check if we're on a public customer shop route
+  if (location.pathname === '/shop' || location.pathname.startsWith('/shop/')) {
+    return (
+      <ThemeProvider>
+        <Toaster position="top-right" richColors />
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            <Route path="/shop" element={<CustomerStorePage />} />
+            <Route path="/shop/*" element={<CustomerStorePage />} />
+          </Routes>
+        </Suspense>
+      </ThemeProvider>
+    );
+  }
+
+  // Check if we're on a public storefront route
+  if (location.pathname.startsWith('/store/')) {
+    return (
+      <ThemeProvider>
+        <Toaster position="top-right" richColors />
+        <Routes>
+          <Route path="/store/:tenantSlug" element={<StorefrontPage />} />
+          <Route path="/store/:tenantSlug/order-success" element={<OrderSuccessPage />} />
+          <Route path="/store/:tenantSlug/*" element={<StorefrontPage />} />
+        </Routes>
+      </ThemeProvider>
+    );
+  }
+
+  // If public catalogue route, render public page without auth
+  if (isPublicCatalogue()) {
+    return (
+      <ThemeProvider>
+        <Toaster position="top-right" richColors />
+        <PublicCatalogue />
+      </ThemeProvider>
+    );
+  }
+
+  return (
+    <ThemeProvider>
+      <LanguageProvider>
+        <CurrencyProvider>
+          <AuthProvider>
+            <Toaster position="top-right" richColors />
+            <AppContentWithLocation currentPage={currentPage} setCurrentPage={setCurrentPage} />
+          </AuthProvider>
+        </CurrencyProvider>
+      </LanguageProvider>
+    </ThemeProvider>
+  );
+}
+
+// Wrapper to pass api to LocationSecurityProvider and OfflineProvider
+const AppContentWithLocation = ({ currentPage, setCurrentPage }) => {
+  const { api, user, token, loading } = useAuth();
+  
+  // Render login page directly without providers to prevent blinking
+  // This is checked FIRST before any providers are mounted
+  if (!user) {
+    // Show minimal loading only if actively checking auth
+    if (loading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      );
+    }
+    return <LoginPage key="login-page" />;
+  }
+  
+  // Only mount providers after user is confirmed logged in
+  return (
+    <OfflineProvider api={api} token={token}>
+      <LocationSecurityProvider api={api} userRole={user?.role || 'staff'}>
+        <PermissionProvider>
+          <ReAuthProvider>
+            <AppContent currentPage={currentPage} setCurrentPage={setCurrentPage} />
+            <SecurityAlertPopup />
+            <OfflineIndicator />
+          </ReAuthProvider>
+        </PermissionProvider>
+      </LocationSecurityProvider>
+    </OfflineProvider>
+  );
+};
+
+const AppContent = ({ currentPage, setCurrentPage }) => {
+  const { user, loading, logout, api } = useAuth();
+  const { hasPageAccess, canPerformAction, loading: permLoading } = usePermissions();
+  const { toggleTheme } = useTheme();
+  const [showSystemRepair, setShowSystemRepair] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+
+  // Safe navigation - only navigate if user has access
+  const safeNavigate = useCallback((page) => {
+    if (hasPageAccess(page)) {
+      setCurrentPage(page);
+    } else {
+      toast.error(`You don't have access to this page`);
+    }
+  }, [hasPageAccess, setCurrentPage]);
+
+  // Keyboard shortcuts handler
+  const shortcutHandlers = useMemo(() => ({
+    // Tally-style Accounting Shortcuts (F2-F10)
+    'tally-day-book': () => {
+      safeNavigate('accounting-books');
+      toast.info('📖 Day Book', { duration: 1500 });
+    },
+    'tally-trial-balance': () => {
+      safeNavigate('accounting-books');
+      toast.info('📊 Trial Balance', { duration: 1500 });
+    },
+    'tally-contra': () => {
+      safeNavigate('voucher-entry');
+      toast.info('🔄 Contra Voucher (F4)', { duration: 1500 });
+    },
+    'tally-payment': () => {
+      safeNavigate('voucher-entry');
+      toast.info('💸 Payment Voucher (F5)', { duration: 1500 });
+    },
+    'tally-receipt': () => {
+      safeNavigate('voucher-entry');
+      toast.info('💰 Receipt Voucher (F6)', { duration: 1500 });
+    },
+    'tally-journal': () => {
+      safeNavigate('voucher-entry');
+      toast.info('📝 Journal Voucher (F7)', { duration: 1500 });
+    },
+    'tally-sales': () => {
+      safeNavigate('voucher-entry');
+      toast.info('🛒 Sales Voucher (F8)', { duration: 1500 });
+    },
+    'tally-purchase': () => {
+      safeNavigate('voucher-entry');
+      toast.info('📦 Purchase Voucher (F9)', { duration: 1500 });
+    },
+    'tally-balance-sheet': () => {
+      safeNavigate('accounting-reports');
+      toast.info('📋 Balance Sheet (F10)', { duration: 1500 });
+    },
+    'tally-ledger': () => {
+      safeNavigate('ledger-management');
+      toast.info('📚 Ledger Management', { duration: 1500 });
+    },
+    
+    // Navigation shortcuts - Ctrl + key
+    'dashboard': () => safeNavigate('dashboard'),
+    'pos': () => safeNavigate('pos'),
+    'items': () => safeNavigate('items'),
+    'inventory': () => safeNavigate('inventory'),
+    'customers': () => safeNavigate('customers'),
+    'sales': () => safeNavigate('sales'),
+    'stock-transfers': () => safeNavigate('transfers'),
+    'employees': () => safeNavigate('employees'),
+    'suppliers': () => safeNavigate('suppliers'),
+    'settings': () => safeNavigate('settings'),
+    
+    // Quick actions
+    'new-sale': () => safeNavigate('pos'),
+    'search': () => {
+      const searchInput = document.querySelector('[data-testid="global-search"], input[placeholder*="Search"]');
+      if (searchInput) {
+        searchInput.focus();
+        searchInput.select();
+      }
+    },
+    'refresh': () => {
+      toast.info('Refreshing...');
+      window.location.reload();
+    },
+    
+    // Global shortcuts
+    'show-shortcuts': () => setShowShortcutsModal(prev => !prev),
+    'toggle-sidebar': () => {
+      const menuBtn = document.querySelector('[data-testid="menu-toggle"], [data-testid="sidebar-toggle"]');
+      if (menuBtn) menuBtn.click();
+    },
+    'toggle-theme': () => {
+      toggleTheme();
+      toast.success('Theme toggled');
+    },
+    'logout': () => {
+      if (window.confirm('Are you sure you want to logout?')) {
+        logout();
+      }
+    },
+    
+    // POS specific shortcuts
+    'pos-checkout': () => {
+      if (currentPage === 'pos') {
+        const checkoutBtn = document.querySelector('[data-testid="checkout-btn"]');
+        if (checkoutBtn && !checkoutBtn.disabled) checkoutBtn.click();
+      } else {
+        safeNavigate('pos');
+      }
+    },
+    'pos-clear': () => {
+      if (currentPage === 'pos') {
+        const clearBtn = document.querySelector('[data-testid="clear-btn"]');
+        if (clearBtn && !clearBtn.disabled) clearBtn.click();
+      }
+    },
+    'pos-hold': () => {
+      if (currentPage === 'pos') {
+        const holdBtn = document.querySelector('[data-testid="hold-btn"]');
+        if (holdBtn && !holdBtn.disabled) holdBtn.click();
+      }
+    },
+  }), [safeNavigate, currentPage, toggleTheme, logout]);
+
+  useKeyboardShortcuts(shortcutHandlers, true);
+
+  // Listen for system repair dialog open event
+  useEffect(() => {
+    const handleOpenRepair = () => setShowSystemRepair(true);
+    window.addEventListener('open-system-repair', handleOpenRepair);
+    
+    // DISABLED: Auto safe mode was causing login blinking
+    // Safe mode should only be triggered manually via System Repair
+    // if (!loading && user && SystemUtils.shouldEnterSafeMode() && !SystemUtils.isInSafeMode()) {
+    //   toast.warning('Multiple crashes detected. Entering Safe Mode...', { duration: 5000 });
+    //   SystemUtils.enterSafeMode();
+    //   setTimeout(() => window.location.reload(), 2000);
+    // }
+    
+    return () => window.removeEventListener('open-system-repair', handleOpenRepair);
+  }, []);
+
+  // Global error handler - DISABLED to prevent login issues
+  // Errors will still be logged to console but won't trigger safe mode
+  // useEffect(() => {
+  //   const handleError = (event) => {
+  //     const message = event.error?.message || event.message || '';
+  //     if (!message.includes('401') && !message.includes('Network') && !message.includes('Session expired')) {
+  //       SystemUtils.logCrash(event.error || event.message, 'global_error');
+  //     }
+  //   };
+  //   const handleUnhandledRejection = (event) => {
+  //     const reason = event.reason?.message || String(event.reason) || '';
+  //     if (!reason.includes('401') && !reason.includes('Network') && !reason.includes('Session expired')) {
+  //       SystemUtils.logCrash(event.reason, 'unhandled_rejection');
+  //     }
+  //   };
+  //   
+  //   window.addEventListener('error', handleError);
+  //   window.addEventListener('unhandledrejection', handleUnhandledRejection);
+  //   
+  //   return () => {
+  //     window.removeEventListener('error', handleError);
+  //     window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+  //   };
+  // }, []);
+
+  // Only show loading spinner on very first permission load, not on subsequent checks
+  // This prevents blinking when navigating between pages
+  const [initialPermLoadDone, setInitialPermLoadDone] = useState(false);
+  
+  useEffect(() => {
+    if (!permLoading && !initialPermLoadDone) {
+      setInitialPermLoadDone(true);
+    }
+  }, [permLoading, initialPermLoadDone]);
+
+  // Show loading spinner only on initial load, not after that
+  if (permLoading && !initialPermLoadDone) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Safe Mode - load minimal features
+  const isSafeMode = SystemUtils.isInSafeMode();
+
+  const renderPage = () => {
+    // In safe mode, only allow dashboard and basic pages
+    if (isSafeMode && !['dashboard', 'settings', 'items', 'pos'].includes(currentPage)) {
+      return (
+        <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6">
+          <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4">
+            <Shield className="w-10 h-10 text-amber-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-amber-600 mb-2">Safe Mode Active</h2>
+          <p className="text-muted-foreground mb-4">
+            Some features are disabled to ensure stability.
+          </p>
+          <button 
+            onClick={() => setShowSystemRepair(true)}
+            className="mt-4 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+          >
+            Open System Repair
+          </button>
+        </div>
+      );
+    }
+
+    // Check if user has access to the current page
+    if (!hasPageAccess(currentPage) && currentPage !== 'dashboard') {
+      return (
+        <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6">
+          <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
+            <Lock className="w-10 h-10 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Access Denied</h2>
+          <p className="text-muted-foreground mb-4">
+            You don&apos;t have permission to access this page.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Contact your administrator if you need access.
+          </p>
+          <button 
+            onClick={() => setCurrentPage('dashboard')}
+            className="mt-6 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      );
+    }
+
+    switch (currentPage) {
+      case 'superadmin-dashboard': return <SuperAdminDashboard />;
+      case 'rbac-admin': return <RBACAdminPage />;
+      case 'autoheal': return <AutoHealDashboard />;
+      case 'ui-blink-fix': return <UIBlinkFixAgent />;
+      case 'error-autofix': return <ErrorAutoFixAgent />;
+      case 'performance-agent': return <PerformanceAgent />;
+      case 'agent-collaboration': return <AgentCollaboration />;
+      case 'gst-automation': return <GSTAutomation />;
+      case 'ai-developer': return <AIDeveloperPage />;
+      case 'security-dashboard': return <SecurityDashboard />;
+      case 'dashboard': 
+        // Regular dashboard for everyone including Super Admin
+        return <DashboardPage onNavigate={setCurrentPage} />;
+      case 'analytics': return <AnalyticsDashboardPage />;
+      case 'pos': return <POSPage onNavigate={setCurrentPage} />;
+      case 'items': return <ItemsPage onNavigate={setCurrentPage} />;
+      case 'smart-scanner': return <SmartScannerPage />;
+      case 'inventory': return <InventoryPage onNavigate={setCurrentPage} />;
+      case 'transfers': return <StockTransfersPage />;
+      case 'stock-receiver': return <StockReceiverPage />;
+      case 'upload-history': return <UploadHistoryPage />;
+      case 'sales': return <SalesPage />;
+      case 'sales-dashboard': return <SalesDashboardPage onNavigate={setCurrentPage} />;
+      case 'quotations': return <QuotationsPage />;
+      case 'sales-orders': return <SalesOrdersPage />;
+      case 'order-history': return <OrderHistoryPage />;
+      case 'virtual-tryon': return <VirtualTrialRoomPage />;
+      case 'fabric-catalogue': return <FabricCataloguePage />;
+      case 'sales-invoices': return <InvoicesPage />;
+      case 'sales-delivery': return <SalesDeliveryPage />;
+      case 'sales-returns': return <SalesReturnsPage />;
+      case 'sales-reports': return <SalesReportsPage api={api} user={user} />;
+      case 'crm': return <CRMPage />;
+      case 'customer-import': return <CustomerImportPage />;
+      case 'purchases': return <PurchaseInvoicesPage />;
+      case 'purchase-orders': return <PurchaseOrdersPage />;
+      case 'purchase-returns': return <PurchaseReturnsPage />;
+      case 'purchase-reports': return <PurchaseReportsPage />;
+      case 'customers': return <CustomersPage />;
+      case 'customer-ledger': return <CustomerLedgerPage />;
+      case 'suppliers': return <SuppliersPage />;
+      case 'supplier-ledger': return <SupplierLedgerPage />;
+      case 'vouchers': return <VouchersPage />;
+      case 'discounts': return <DiscountManagementPage />;
+      case 'stock-audit': return <StockAuditTrailPage />;
+      case 'stores': return <StoresPage />;
+      case 'employees': return <EmployeesPage />;
+      case 'employment-agreements': return <EmploymentAgreementsPage />;
+      case 'task-management': return <TaskManagementPage />;
+      case 'users': return <UserManagementPage />;
+      case 'rbac-permissions': return <RBACPermissionsPage />;
+      case 'centralized-attendance': return <CentralizedAttendancePage />;
+      case 'document-verification': return <DocumentVerificationPage />;
+      case 'daily-attendance': return <DailyAttendancePage />;
+      case 'face-attendance': return <FaceAttendancePage />;
+      case 'barcode-attendance': return <BarcodeAttendancePage />;
+      case 'printing-lab': return <PrintingLabPage />;
+      case 'attendance-sheet': return <MonthlyAttendanceSheet />;
+      case 'attendance': return <AttendancePage />;
+      case 'employee-ratings': return <EmployeeRatingsPage />;
+      case 'payroll': return <PayrollPage onNavigate={setCurrentPage} />;
+      case 'salary-calculator': return <PayrollCalculatorPage />;
+      case 'employee-loans': return <EmployeeLoanPage />;
+      case 'loyalty': return <LoyaltyProgramPage />;
+      case 'gst-master': return <GSTMasterPage />;
+      case 'invoice-settings': return <InvoiceSettingsPage />;
+      case 'security-settings': return <SecuritySettingsPage />;
+      case 'accounting-reports': return <AccountingReportsPage />;
+      case 'central-accounting': return <CentralAccountingPage />;
+      case 'ledger-management': return <LedgerManagementPage />;
+      case 'voucher-entry': return <VoucherEntryPage />;
+      case 'accounting-books': return <AccountingBooksPage />;
+      case 'gst-reports': return <GSTReportsPage />;
+      case 'backup-restore': return <BackupRestorePage />;
+      case 'recycle-bin': return <RecycleBinPage />;
+      case 'expenditure': return <ExpenditurePage />;
+      case 'ledger': return <LedgerPage />;
+      case 'ecommerce': return <ItemsPage onNavigate={setCurrentPage} />;
+      case 'connect-hub': return <ConnectHubPage />;
+      case 'training': return <TrainingPage />;
+      case 'ai-agents-dashboard': return <AIAgentsDashboard api={api} user={user} />;
+      case 'agent-control-center': return <AgentControlCenter />;
+      case 'ai-agent': return <AIAgentPage />;
+      case 'ai-dashboard': return <AIDashboardPage />;
+      case 'auto-poster': return <AutoPosterPage />;
+      case 'market-analytics':
+        // Super Admin market analytics
+        if (user?.role === 'superadmin') {
+          return <SuperAdminDashboard initialTab="analytics" />;
+        }
+        return <AnalyticsDashboardPage />;
+      case 'subscriptions': 
+        // Super Admin view of all subscriptions/plans
+        if (user?.role === 'superadmin') {
+          return <SuperAdminDashboard initialTab="plans" />;
+        }
+        return <BillingPage />;
+      case 'billing': return <BillingPage />;
+      case 'keyboard-shortcuts': return <KeyboardShortcutsPage />;
+      case 'settings': return <SettingsPage />;
+      default: 
+        // Super Admin default view
+        if (user?.role === 'superadmin') {
+          return <SuperAdminDashboard />;
+        }
+        return <DashboardPage onNavigate={setCurrentPage} />;
+    }
+  };
+
+  return (
+    <>
+      <MainLayout currentPage={currentPage} setCurrentPage={setCurrentPage}>
+        <div className="main-content-with-nav">
+          <Suspense fallback={<PageLoadingSpinner />}>
+            {renderPage()}
+          </Suspense>
+        </div>
+      </MainLayout>
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav 
+        currentPage={currentPage} 
+        setCurrentPage={setCurrentPage}
+        onMenuClick={() => {
+          // Trigger sidebar open
+          const menuBtn = document.querySelector('[data-testid="menu-toggle"]');
+          if (menuBtn) menuBtn.click();
+        }}
+      />
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
+      {/* System Repair Dialog */}
+      <SystemRepairDialog isOpen={showSystemRepair} onClose={() => setShowSystemRepair(false)} />
+      {/* Keyboard Shortcuts Modal */}
+      <ShortcutsModal open={showShortcutsModal} onClose={() => setShowShortcutsModal(false)} />
+      {/* Tally-style Shortcut Bar */}
+      <TallyShortcutBar onNavigate={(page, voucherType) => {
+        console.log('TallyShortcutBar onNavigate called:', page, voucherType);
+        // Navigate directly by setting current page
+        if (hasPageAccess(page)) {
+          setCurrentPage(page);
+          // If navigating to voucher-entry with a specific type, dispatch an event
+          if (voucherType) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('open-voucher-type', { detail: { voucherType } }));
+            }, 500);
+          }
+        } else {
+          toast.error(`You don't have access to this page`);
+        }
+      }} />
+    </>
+  );
+};
+
+export default App;

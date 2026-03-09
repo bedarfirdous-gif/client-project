@@ -1,0 +1,536 @@
+/* Mobile-First Responsive Styles for BijnisBooks */
+
+/* ============== BASE MOBILE STYLES ============== */
+
+/* Touch-friendly tap targets */
+@media (max-width: 768px) {
+  button, 
+  [role="button"],
+  a,
+  input[type="checkbox"],
+  input[type="radio"],
+  .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Larger tap targets for navigation */
+  nav button,
+  nav a {
+    padding: 12px 16px !important;
+  }
+}
+
+/* ============== TYPOGRAPHY ============== */
+
+@media (max-width: 640px) {
+  /* Scale down headings on mobile */
+  h1 {
+    font-size: 1.5rem !important;
+  }
+  
+  h2 {
+    font-size: 1.25rem !important;
+  }
+  
+  h3 {
+    font-size: 1.1rem !important;
+  }
+  
+  /* Adjust body text */
+  .text-base {
+    font-size: 0.9rem;
+  }
+  
+  .text-sm {
+    font-size: 0.8rem;
+  }
+  
+  .text-xs {
+    font-size: 0.7rem;
+  }
+}
+
+/* ============== LAYOUT ============== */
+
+/* Mobile padding adjustments */
+@media (max-width: 640px) {
+  .mobile-padding {
+    padding: 12px !important;
+  }
+  
+  .p-6 {
+    padding: 12px !important;
+  }
+  
+  .p-4 {
+    padding: 10px !important;
+  }
+  
+  .px-6 {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+  
+  .py-6 {
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
+  
+  /* Gap adjustments */
+  .gap-6 {
+    gap: 12px !important;
+  }
+  
+  .gap-4 {
+    gap: 8px !important;
+  }
+}
+
+/* ============== CARDS ============== */
+
+@media (max-width: 640px) {
+  /* Stack card grids vertically */
+  .grid.md\:grid-cols-2,
+  .grid.md\:grid-cols-3,
+  .grid.md\:grid-cols-4,
+  .grid.lg\:grid-cols-3,
+  .grid.lg\:grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Summary cards - 2 columns on mobile */
+  .mobile-grid-2 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* ============== TABLES ============== */
+
+/* Responsive table wrapper */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  /* Hide less important columns on mobile */
+  .hide-mobile {
+    display: none !important;
+  }
+  
+  /* Make table cells more compact */
+  table th,
+  table td {
+    padding: 8px 6px !important;
+    font-size: 0.8rem !important;
+  }
+  
+  /* Card-based table layout for mobile */
+  .mobile-card-table {
+    display: block;
+  }
+  
+  .mobile-card-table thead {
+    display: none;
+  }
+  
+  .mobile-card-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .mobile-card-table tr {
+    display: flex;
+    flex-direction: column;
+    background: var(--card);
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid var(--border);
+  }
+  
+  .mobile-card-table td {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0 !important;
+    border: none !important;
+  }
+  
+  .mobile-card-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--muted-foreground);
+    margin-right: 8px;
+  }
+}
+
+/* ============== FORMS ============== */
+
+@media (max-width: 640px) {
+  /* Stack form fields vertically - but NOT product grids */
+  .form-grid,
+  form .grid.grid-cols-2,
+  [role="dialog"] .grid.grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Product catalogue grid - KEEP 2 columns on mobile */
+  [data-testid="items-page"] > .grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  
+  /* Full width inputs */
+  input,
+  select,
+  textarea {
+    width: 100% !important;
+    font-size: 16px !important; /* Prevent zoom on iOS */
+  }
+  
+  /* Larger input fields for touch */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="date"],
+  select,
+  textarea {
+    min-height: 48px !important;
+    padding: 12px !important;
+  }
+}
+
+/* ============== MODALS / DIALOGS ============== */
+
+@media (max-width: 640px) {
+  /* Full screen modals on mobile */
+  [role="dialog"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+  
+  /* Modal content scrollable */
+  [role="dialog"] > div {
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+  }
+  
+  /* Modal footer sticky */
+  .dialog-footer {
+    position: sticky;
+    bottom: 0;
+    background: var(--background);
+    padding: 16px;
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* ============== TABS ============== */
+
+@media (max-width: 640px) {
+  /* Scrollable tabs on mobile */
+  [role="tablist"] {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 4px;
+  }
+  
+  [role="tablist"]::-webkit-scrollbar {
+    display: none;
+  }
+  
+  [role="tab"] {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 8px 12px !important;
+    font-size: 0.8rem !important;
+  }
+}
+
+/* ============== BUTTONS ============== */
+
+@media (max-width: 640px) {
+  /* Full width buttons on mobile */
+  .mobile-full-btn {
+    width: 100% !important;
+  }
+  
+  /* Button groups stack vertically */
+  .button-group {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  
+  .button-group > button {
+    width: 100% !important;
+  }
+  
+  /* Floating action button */
+  .fab {
+    position: fixed !important;
+    bottom: 20px !important;
+    right: 20px !important;
+    z-index: 50 !important;
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: 50% !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  }
+}
+
+/* ============== NAVIGATION ============== */
+
+/* Bottom navigation for mobile */
+.mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    padding: 8px 0;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    z-index: 50;
+    justify-content: space-around;
+  }
+  
+  .mobile-bottom-nav button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 16px;
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+  }
+  
+  .mobile-bottom-nav button.active {
+    color: var(--primary);
+  }
+  
+  .mobile-bottom-nav button svg {
+    width: 24px;
+    height: 24px;
+  }
+  
+  /* Add padding to main content for bottom nav */
+  .main-content-with-nav {
+    padding-bottom: 80px !important;
+  }
+}
+
+/* ============== POS PAGE ============== */
+
+@media (max-width: 768px) {
+  /* POS layout adjustments */
+  .pos-container {
+    flex-direction: column !important;
+  }
+  
+  .pos-products {
+    order: 1;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+  
+  .pos-cart {
+    order: 2;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 50vh;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    z-index: 40;
+  }
+  
+  /* Product grid - 2 columns on mobile */
+  .pos-product-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  
+  /* Smaller product cards */
+  .pos-product-card {
+    padding: 8px !important;
+  }
+  
+  .pos-product-card img {
+    height: 80px !important;
+  }
+}
+
+/* ============== DASHBOARD ============== */
+
+@media (max-width: 640px) {
+  /* Dashboard stats - 2 columns */
+  .dashboard-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  
+  /* Smaller stat cards */
+  .stat-card {
+    padding: 12px !important;
+  }
+  
+  .stat-card .stat-value {
+    font-size: 1.25rem !important;
+  }
+  
+  .stat-card .stat-label {
+    font-size: 0.7rem !important;
+  }
+}
+
+/* ============== CHARTS ============== */
+
+@media (max-width: 640px) {
+  /* Make charts responsive */
+  .recharts-wrapper {
+    width: 100% !important;
+  }
+  
+  /* Hide chart legend on very small screens */
+  .recharts-legend-wrapper {
+    display: none !important;
+  }
+}
+
+/* ============== SIDEBAR OVERLAY ============== */
+
+@media (max-width: 1024px) {
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 40;
+  }
+}
+
+/* ============== SAFE AREAS (iOS) ============== */
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* ============== SCROLLING ============== */
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbars on mobile but keep functionality */
+@media (max-width: 768px) {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ============== ANIMATIONS ============== */
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Touch feedback */
+@media (hover: none) {
+  button:active,
+  [role="button"]:active,
+  a:active {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+}
+
+/* ============== UTILITY CLASSES ============== */
+
+/* Mobile visibility */
+.mobile-only {
+  display: none !important;
+}
+
+.desktop-only {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: block !important;
+  }
+  
+  .desktop-only {
+    display: none !important;
+  }
+  
+  .mobile-hidden {
+    display: none !important;
+  }
+}
+
+/* Flex utilities for mobile */
+@media (max-width: 640px) {
+  .mobile-flex-col {
+    flex-direction: column !important;
+  }
+  
+  .mobile-items-start {
+    align-items: flex-start !important;
+  }
+  
+  .mobile-w-full {
+    width: 100% !important;
+  }
+  
+  .mobile-text-center {
+    text-align: center !important;
+  }
+}
+
+/* ============== PRINT STYLES ============== */
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+}

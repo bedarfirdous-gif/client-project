@@ -1,0 +1,34 @@
+# Application Load Balancer Target Group for Backend Health Checks
+# This configures how ALB checks if backend is healthy
+
+# Create with:
+# aws elbv2 create-target-group --cli-input-json file://alb-target-group.json
+
+{
+  "Name": "bijnisbooks-backend",
+  "Protocol": "HTTP",
+  "Port": 8001,
+  "VpcId": "vpc-xxxxx",
+  "HealthCheckProtocol": "HTTP",
+  "HealthCheckPort": "8001",
+  "HealthCheckEnabled": true,
+  "HealthCheckPath": "/api/health",
+  "HealthCheckIntervalSeconds": 30,
+  "HealthCheckTimeoutSeconds": 5,
+  "HealthyThresholdCount": 2,
+  "UnhealthyThresholdCount": 3,
+  "Matcher": {
+    "HttpCode": "200"
+  },
+  "TargetType": "ip",
+  "Tags": [
+    {
+      "Key": "Environment",
+      "Value": "production"
+    },
+    {
+      "Key": "Application",
+      "Value": "bijnisbooks"
+    }
+  ]
+}

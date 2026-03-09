@@ -1,0 +1,44 @@
+# AWS ECS Service Definition for Backend
+# This ensures 3 replicas with auto-recovery
+
+# Create service with:
+# aws ecs create-service --cli-input-json file://ecs-backend-service.json
+
+{
+  "serviceName": "bijnisbooks-backend",
+  "cluster": "bijnisbooks-production",
+  "taskDefinition": "bijnisbooks-backend:latest",
+  "desiredCount": 3,
+  "launchType": "FARGATE",
+  "platformVersion": "LATEST",
+  "deploymentConfiguration": {
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 100,
+    "deploymentCircuitBreaker": {
+      "enable": true,
+      "rollback": true
+    }
+  },
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [
+        "subnet-xxxxx1",
+        "subnet-xxxxx2",
+        "subnet-xxxxx3"
+      ],
+      "securityGroups": ["sg-xxxxx"],
+      "assignPublicIp": "DISABLED"
+    }
+  },
+  "loadBalancers": [
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:region:account:targetgroup/bijnisbooks-backend/xxxxx",
+      "containerName": "backend",
+      "containerPort": 8001
+    }
+  ],
+  "healthCheckGracePeriodSeconds": 60,
+  "schedulingStrategy": "REPLICA",
+  "enableECSManagedTags": true,
+  "propagateTags": "SERVICE"
+}

@@ -1,0 +1,42 @@
+# CloudWatch Alarm for Backend Health
+# Sends alert when backend becomes unhealthy
+
+# Create with:
+# aws cloudwatch put-metric-alarm --cli-input-json file://cloudwatch-alarm.json
+
+{
+  "AlarmName": "BijnisBooks-Backend-Unhealthy",
+  "AlarmDescription": "Alert when backend service has unhealthy hosts",
+  "ActionsEnabled": true,
+  "AlarmActions": [
+    "arn:aws:sns:YOUR_REGION:YOUR_ACCOUNT:bijnisbooks-alerts"
+  ],
+  "OKActions": [
+    "arn:aws:sns:YOUR_REGION:YOUR_ACCOUNT:bijnisbooks-alerts"
+  ],
+  "MetricName": "UnHealthyHostCount",
+  "Namespace": "AWS/ApplicationELB",
+  "Statistic": "Average",
+  "Dimensions": [
+    {
+      "Name": "TargetGroup",
+      "Value": "targetgroup/bijnisbooks-backend/xxxxx"
+    },
+    {
+      "Name": "LoadBalancer",
+      "Value": "app/bijnisbooks-alb/xxxxx"
+    }
+  ],
+  "Period": 60,
+  "EvaluationPeriods": 2,
+  "DatapointsToAlarm": 2,
+  "Threshold": 1,
+  "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+  "TreatMissingData": "notBreaching",
+  "Tags": [
+    {
+      "Key": "Environment",
+      "Value": "production"
+    }
+  ]
+}

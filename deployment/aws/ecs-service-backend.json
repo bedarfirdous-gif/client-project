@@ -1,0 +1,37 @@
+{
+  "serviceName": "bijnisbooks-backend",
+  "cluster": "bijnisbooks-cluster",
+  "taskDefinition": "bijnisbooks-backend",
+  "desiredCount": 2,
+  "launchType": "FARGATE",
+  "platformVersion": "LATEST",
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [
+        "subnet-YOUR_PRIVATE_SUBNET_1",
+        "subnet-YOUR_PRIVATE_SUBNET_2"
+      ],
+      "securityGroups": [
+        "sg-YOUR_BACKEND_SG"
+      ],
+      "assignPublicIp": "DISABLED"
+    }
+  },
+  "loadBalancers": [
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:YOUR_REGION:YOUR_ACCOUNT_ID:targetgroup/bijnisbooks-backend-tg/YOUR_TG_ID",
+      "containerName": "backend",
+      "containerPort": 8001
+    }
+  ],
+  "healthCheckGracePeriodSeconds": 60,
+  "deploymentConfiguration": {
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 50,
+    "deploymentCircuitBreaker": {
+      "enable": true,
+      "rollback": true
+    }
+  },
+  "enableExecuteCommand": true
+}

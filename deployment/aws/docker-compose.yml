@@ -1,0 +1,101 @@
+# ============================================
+# BijnisBooks - Docker Compose for Local/AWS
+# ============================================
+# Usage:
+#   Development: docker-compose up -d
+#   Production:  docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  # ============================================
+  # MongoDB Database
+  # ============================================
+  mongodb:
+    image: mongo:6.0
+    container_name: bijnisbooks-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password123}
+      MONGO_INITDB_DATABASE: ${DB_NAME:-bijnisbooks}
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    ports:
+      - "27017:27017"
+    networks:
+      - bijnisbooks-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ============================================
+  # FastAPI Backend
+  # ============================================
+  backend:
+    build:
+      context: ../..
+      dockerfile: deployment/aws/Dockerfile.backend
+    container_name: bijnisbooks-backend
+    restart: unless-stopped
+    environment:
+      - MONGO_URL=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-password123}@mongodb:27017/${DB_NAME:-bijnisbooks}?authSource=admin
+      - DB_NAME=${DB_NAME:-bijnisbooks}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - EMERGENT_LLM_KEY=${EMERGENT_LLM_KEY}
+      - STRIPE_API_KEY=${STRIPE_API_KEY}
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "8001:8001"
+    networks:
+      - bijnisbooks-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================
+  # React Frontend
+  # ============================================
+  frontend:
+    build:
+      context: ../..
+      dockerfile: deployment/aws/Dockerfile.frontend
+      args:
+        - REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL:-http://localhost:8001}
+    container_name: bijnisbooks-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - bijnisbooks-network
+    depends_on:
+      backend:
+        condition: service_healthy
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  bijnisbooks-network:
+    driver: bridge
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  mongodb_data:
+    driver: local
+  uploads_data:
+    driver: local

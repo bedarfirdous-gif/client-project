@@ -1,0 +1,2594 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useAuth } from '../App';
+import { toast } from 'sonner';
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, QrCode, Tag, User, RefreshCw, Clock, LayoutDashboard, Package, X, Building2, Smartphone, Percent, Users, BookOpen, Receipt, Tags, Gift, Star, Printer, Download, MessageCircle, Check, DollarSign, Repeat2, WifiOff, Camera, ScanBarcode, IdCard, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Card, CardContent } from '../components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import ReceiptGenerator from '../components/ReceiptGenerator';
+import ThermalPrinter from '../components/ThermalPrinter';
+import { useCurrency, CURRENCIES } from '../contexts/CurrencyContext';
+import { useOffline } from '../contexts/OfflineContext';
+import BarcodeCameraScanner from '../components/BarcodeCameraScanner';
+import QRScannerDialog from '../components/QRScannerDialog';
+import SyncBar from '../components/SyncBar';
+// Import POS components - FavoritesSection, QuickCheckoutModal, CartSection, ProductGrid
+import { FavoritesSection, QuickCheckoutModal, CartSection, ProductGrid } from '../components/pos';
+
+// Payment methods configuration
+const PAYMENT_METHODS = [
+  { id: 'cash', label: 'Cash', icon: Banknote, color: 'bg-green-100 text-green-700 border-green-200' },
+  { id: 'gpay', label: 'GPay', icon: Smartphone, color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  { id: 'jk_bank', label: 'JK Bank', icon: Building2, color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  { id: 'hdfc_card', label: 'HDFC Card', icon: CreditCard, color: 'bg-red-100 text-red-700 border-red-200' },
+  { id: 'upi', label: 'UPI', icon: QrCode, color: 'bg-amber-100 text-amber-700 border-amber-200' },
+];
+
+// GST Rates
+const GST_RATES = [
+  { value: '0', label: '0% GST' },
+  { value: '5', label: '5% GST' },
+  { value: '12', label: '12% GST' },
+  { value: '18', label: '18% GST' },
+  { value: '28', label: '28% GST' },
+];
+
+// Quick Action Tiles for POS
+const POS_QUICK_ACTIONS = [
+  { id: 'customers', label: 'Customers', icon: Users, color: 'bg-purple-500' },
+  { id: 'items', label: 'Items', icon: Package, color: 'bg-blue-500' },
+  { id: 'vouchers', label: 'Vouchers', icon: Tags, color: 'bg-pink-500' },
+  { id: 'purchases', label: 'Purchases', icon: Receipt, color: 'bg-amber-500' },
+  { id: 'customer-ledger', label: 'Ledger', icon: BookOpen, color: 'bg-indigo-500' },
+];
+
+export default function POSPage({ onNavigate }) {
+  const { currencySymbol } = useCurrency();
+  const { api, user } = useAuth();
+  const { 
+    isOnline, 
+    saveSaleOffline, 
+    getCachedItems, 
+    getCachedVariants, 
+    getCachedCustomers, 
+    getCachedStores,
+    getCachedDiscounts,
+    getCachedVouchers,
+    getCachedLoyalty,
+    validateVoucherOffline,
+    getApplicableDiscountsOffline,
+    cacheDataForOffline, 
+    pendingSalesCount 
+  } = useOffline();
+  const [items, setItems] = useState([]);
+  const [variants, setVariants] = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [selectedStore, setSelectedStore] = useState('');
+  const [cart, setCart] = useState([]);
+  const [showCheckout, setShowCheckout] = useState(false);
+  // FIX: avoid null -> object transitions that can cause conditional UI flashes
+  // Use a stable initial shape and an explicit "loaded" flag where UI needs to guard rendering.
+  const [selectedCustomer, setSelectedCustomer] = useState({});
+  const [isSelectedCustomerLoaded, setIsSelectedCustomerLoaded] = useState(false);
+  const [voucherCode, setVoucherCode] = useState('');
+  const [voucherDiscount, setVoucherDiscount] = useState(0);
+  const [voucherApplied, setVoucherApplied] = useState(false);
+  const [todaysSales, setTodaysSales] = useState(0);
+  const [todaysOrders, setTodaysOrders] = useState(0);
+  const [holdOrders, setHoldOrders] = useState([]);
+  const [showHoldOrders, setShowHoldOrders] = useState(false);
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', email: '', gst_number: '', customer_type: 'retail' });
+  const [selectedGst, setSelectedGst] = useState('18');
+  const [gstInclusive, setGstInclusive] = useState(true);
+  const [usingCachedData, setUsingCachedData] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  
+  // Cached offline data for discounts/vouchers/loyalty
+  const [cachedDiscounts, setCachedDiscounts] = useState([]);
+  const [cachedVouchers, setCachedVouchers] = useState([]);
+  // FIX: avoid null -> populated transitions that can cause conditional UI flashes
+  // (use a stable default + an explicit loaded flag when needed)
+  const [cachedLoyaltySettings, setCachedLoyaltySettings] = useState({});
+  const [isLoyaltyLoaded, setIsLoyaltyLoaded] = useState(false);
+  
+  // Discount & Loyalty
+  const [manualDiscount, setManualDiscount] = useState(0);
+  const [discountType, setDiscountType] = useState('amount'); // 'amount' or 'percent'
+  const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(0);
+  const [loyaltyPointsValue, setLoyaltyPointsValue] = useState(0);
+  
+  // Auto-applied discounts from Discount Manager
+  const [autoAppliedDiscounts, setAutoAppliedDiscounts] = useState({
+    itemDiscounts: [],
+    bogoDiscounts: [],
+    tieredDiscount: null,
+    totalAutoDiscount: 0
+  });
+  
+  // Part Payment State
+  const [payments, setPayments] = useState([{ method: 'cash', amount: 0 }]);
+  
+  // Quick Checkout - Cash received tracking
+  const [cashReceived, setCashReceived] = useState(0);
+  
+  // Post-Sale Receipt Modal
+  const [showReceipt, setShowReceipt] = useState(false);
+  // FIX: keep stable shape to prevent conditional rendering flicker
+  const [lastSale, setLastSale] = useState({});
+  const [isLastSaleLoaded, setIsLastSaleLoaded] = useState(false);
+  
+  // Thermal Printer
+  const [showThermalPrinter, setShowThermalPrinter] = useState(false);
+  
+  // HIGH-SPEED BILLING: Favorites/Frequently ordered items
+  const [favoriteItems, setFavoriteItems] = useState([]);
+  const [showQuickCheckout, setShowQuickCheckout] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false); // Toggle for Quick Add section - hidden by default
+  const [openManageFavorites, setOpenManageFavorites] = useState(false); // Trigger to open manage favorites dialog
+  const searchInputRef = React.useRef(null);
+  
+  // Invoice Settings for receipt
+  // FIX: avoid null initial state; pair with loaded flag to guard UI where required
+  const [invoiceSettings, setInvoiceSettings] = useState({});
+  const [isInvoiceSettingsLoaded, setIsInvoiceSettingsLoaded] = useState(false);
+  
+  // Currency converter - USE CONTEXT ONLY
+  // IMPORTANT: Do NOT add useState for displayCurrency here!
+  // The displayCurrency state is managed by CurrencyContext.
+  // Adding a local useState will cause: "SyntaxError: Identifier 'displayCurrency' has already been declared"
+  const { displayCurrency, formatCurrency, convertFromBase, baseCurrency, setDisplayCurrency } = useCurrency();
+  const [showCurrencyConverter, setShowCurrencyConverter] = useState(false);
+  const [converterAmount, setConverterAmount] = useState('');
+
+  // Filter stores based on user's assigned stores
+  // Admin/Manager/Superadmin see all stores, Staff only see their assigned stores
+  const availableStores = useMemo(() => {
+    const isAdmin = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'superadmin';
+    const userStoreIds = user?.store_ids || [];
+    
+    if (isAdmin || userStoreIds.length === 0) {
+      // Admins see all stores, or if user has no assigned stores, show all
+      return stores;
+    }
+    
+    // Staff users only see their assigned stores
+    return stores.filter(s => userStoreIds.includes(s.id));
+  }, [stores, user?.role, user?.store_ids]);
+
+  // Barcode Scanner
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const barcodeInputRef = React.useRef(null);
+
+  // Handle barcode scan - auto-add to cart
+  const handleBarcodeScan = async (barcode) => {
+    if (!barcode || barcode.length < 3) return;
+    
+    // Find item by barcode/SKU
+    const foundItem = items.find(item => 
+      item.barcode === barcode || 
+      item.sku === barcode || 
+      item.item_code === barcode
+    );
+    
+    if (foundItem) {
+      // Check stock
+      const itemInventory = inventory.find(inv => inv.item_id === foundItem.id && inv.store_id === selectedStore);
+      const stock = itemInventory?.quantity || 0;
+      
+      if (stock <= 0) {
+        toast.error(`${foundItem.name} is out of stock`);
+        setBarcodeInput('');
+        return;
+      }
+      
+      // Add to cart
+      addToCart(foundItem);
+      toast.success(`Added: ${foundItem.name}`);
+      setBarcodeInput('');
+    } else {
+      // Try finding variant by barcode
+      const foundVariant = variants.find(v => v.barcode === barcode || v.sku === barcode);
+      if (foundVariant) {
+        const parentItem = items.find(i => i.id === foundVariant.item_id);
+        if (parentItem) {
+          addToCart(parentItem, foundVariant);
+          toast.success(`Added: ${parentItem.name} - ${foundVariant.name}`);
+          setBarcodeInput('');
+          return;
+        }
+      }
+      toast.error(`Product not found: ${barcode}`);
+      setBarcodeInput('');
+    }
+  };
+
+  // Listen for barcode scanner input (keyboard wedge mode)
+  React.useEffect(() => {
+    let barcodeBuffer = '';
+    let lastKeyTime = 0;
+    
+    const handleKeyPress = (e) => {
+      const currentTime = new Date().getTime();
+      
+      // If typing is fast (< 50ms between keys), it's likely a barcode scanner
+      if (currentTime - lastKeyTime < 50) {
+        barcodeBuffer += e.key;
+      } else {
+        barcodeBuffer = e.key;
+      }
+      lastKeyTime = currentTime;
+      
+      // Enter key signals end of barcode
+      if (e.key === 'Enter' && barcodeBuffer.length > 3) {
+        const barcode = barcodeBuffer.replace('Enter', '').trim();
+        if (barcode && !showCheckout && !showAddCustomer) {
+          handleBarcodeScan(barcode);
+        }
+        barcodeBuffer = '';
+      }
+    };
+    
+    window.addEventListener('keypress', handleKeyPress);
+    return () => window.removeEventListener('keypress', handleKeyPress);
+  }, [items, variants, inventory, selectedStore, showCheckout, showAddCustomer]);
+
+  // HIGH-SPEED BILLING: Keyboard shortcuts for faster billing
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Don't trigger shortcuts when typing in inputs
+      const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName);
+      
+      // "/" - Focus search (unless already typing)
+      if (e.key === '/' && !isTyping) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+      
+      // "Escape" - Clear search or close modals
+      if (e.key === 'Escape') {
+        if (showCheckout) {
+          setShowCheckout(false);
+        } else if (showQuickCheckout) {
+          setShowQuickCheckout(false);
+        } else if (search) {
+          setSearch('');
+          searchInputRef.current?.blur();
+        }
+        return;
+      }
+      
+      // "F2" - Quick checkout (if cart has items)
+      if (e.key === 'F2' && cart.length > 0) {
+        e.preventDefault();
+        setShowQuickCheckout(true);
+        return;
+      }
+      
+      // "F3" - Focus barcode input
+      if (e.key === 'F3') {
+        e.preventDefault();
+        barcodeInputRef.current?.focus();
+        return;
+      }
+      
+      // "F4" - Clear cart
+      if (e.key === 'F4' && cart.length > 0) {
+        e.preventDefault();
+        if (window.confirm('Clear cart?')) {
+          setCart([]);
+          toast.info('Cart cleared');
+        }
+        return;
+      }
+      
+      // Number keys 1-9 for quick add favorites (when not typing)
+      if (!isTyping && e.key >= '1' && e.key <= '9') {
+        const index = parseInt(e.key) - 1;
+        const favItem = favoriteItems[index];
+        if (favItem) {
+          // Get variant - use variant_id from favorites API or search by item_id
+          const itemVariant = favItem.variant_id 
+            ? variants.find(v => v.id === favItem.variant_id) 
+            : variants.find(v => v.item_id === favItem.id);
+          // Create synthetic variant if not found
+          const variantToUse = itemVariant || {
+            id: favItem.variant_id || favItem.id,
+            item_id: favItem.id,
+            selling_price: favItem.selling_price || favItem.price,
+            mrp: favItem.mrp,
+            size: '',
+            color: '',
+            current_stock: favItem.current_stock
+          };
+          addToCart(favItem, variantToUse);
+          toast.success(`Added: ${favItem.name}`);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showCheckout, showQuickCheckout, search, cart, favoriteItems, variants]);
+
+  // Fetch favorites/frequently ordered items - wrapped in useCallback for passing to child components
+  const fetchFavorites = useCallback(async () => {
+    try {
+      // Get favorites from POS favorites API (top-selling or custom)
+      const storeParam = selectedStore ? `?store_id=${selectedStore}&limit=9` : '?limit=9';
+      const favData = await api(`/api/pos/favorites${storeParam}`).catch(() => null);
+      if (favData?.favorites && favData.favorites.length > 0) {
+        setFavoriteItems(favData.favorites);
+      } else {
+        // No favorites available - clear the list
+        setFavoriteItems([]);
+      }
+    } catch (err) {
+      // On error, clear favorites
+      setFavoriteItems([]);
+    }
+  }, [api, selectedStore]);
+
+  // Get favorite item IDs for checking if item is in favorites
+  const favoriteItemIds = useMemo(() => favoriteItems.map(f => f.id), [favoriteItems]);
+
+  // Add/remove from favorites handler
+  const handleToggleFavorite = useCallback(async (itemId) => {
+    const isFav = favoriteItemIds.includes(itemId);
+    try {
+      if (isFav) {
+        await api('/api/pos/favorites/remove', {
+          method: 'POST',
+          body: JSON.stringify({ item_id: itemId, store_id: selectedStore || '' })
+        });
+        toast.success('Removed from favorites');
+      } else {
+        await api('/api/pos/favorites/add', {
+          method: 'POST',
+          body: JSON.stringify({ item_id: itemId, store_id: selectedStore || '' })
+        });
+        toast.success('Added to favorites');
+      }
+      fetchFavorites();
+    } catch (err) {
+      toast.error(err.message || 'Failed to update favorites');
+    }
+  }, [api, selectedStore, favoriteItemIds, fetchFavorites]);
+
+  // Update favorites when items load or store changes
+  React.useEffect(() => {
+    if (isOnline) {
+      fetchFavorites();
+    } else {
+      // When offline, clear favorites (can't manage them offline)
+      setFavoriteItems([]);
+    }
+  }, [isOnline, selectedStore, fetchFavorites]);
+
+  // Fetch data - with offline fallback
+  const fetchData = async () => {
+    try {
+      if (isOnline) {
+        const [itemsData, variantsData, invData, storesData, custData, settingsData, favoritesData] = await Promise.all([
+          api('/api/items?active=true'),
+          api('/api/variants'),
+          api('/api/inventory'),
+          api('/api/stores'),
+          api('/api/customers'),
+          api('/api/invoice-settings').catch(() => null),
+          api('/api/pos/favorites').catch(() => ({ favorites: [] })),
+        ]);
+        setItems(itemsData);
+        setVariants(variantsData);
+        setInventory(invData);
+        setStores(storesData);
+        setCustomers(custData);
+        setInvoiceSettings(settingsData);
+        setFavoriteItems(favoritesData?.favorites || []);
+        setUsingCachedData(false);
+        
+        // Set default store - prioritize user's assigned store
+        if (storesData.length > 0 && !selectedStore) {
+          // Check if user has assigned stores
+          const userStoreIds = user?.store_ids || [];
+          if (userStoreIds.length > 0) {
+            // Find the first assigned store that exists
+            const assignedStore = storesData.find(s => userStoreIds.includes(s.id));
+            if (assignedStore) {
+              setSelectedStore(assignedStore.id);
+            } else {
+              // Fallback to first store if assigned store not found
+              setSelectedStore(storesData[0].id);
+            }
+          } else {
+            // No assigned stores, use first available store
+            setSelectedStore(storesData[0].id);
+          }
+        }
+      } else {
+        // Load from cache when offline
+        const [cachedItemsData, cachedVariantsData, cachedCustomersData, cachedStoresData, cachedDiscountsData, cachedVouchersData, cachedLoyaltyData] = await Promise.all([
+          getCachedItems(),
+          getCachedVariants(),
+          getCachedCustomers(),
+          getCachedStores(),
+          getCachedDiscounts(),
+          getCachedVouchers(),
+          getCachedLoyalty()
+        ]);
+        
+        if (cachedItemsData.length === 0) {
+          toast.error('No cached data available', { 
+            description: 'Please cache data for offline use when online' 
+          });
+        } else {
+          setItems(cachedItemsData);
+          setVariants(cachedVariantsData);
+          setCustomers(cachedCustomersData);
+          setStores(cachedStoresData);
+          setCachedDiscounts(cachedDiscountsData || []);
+          setCachedVouchers(cachedVouchersData || []);
+          setCachedLoyaltySettings(cachedLoyaltyData);
+          setInventory([]); // Inventory not available offline
+          setUsingCachedData(true);
+          toast.info('Using cached data', { 
+            description: `${cachedDiscountsData?.length || 0} discounts, ${cachedVouchersData?.length || 0} vouchers available offline` 
+          });
+          
+          // Set default store - prioritize user's assigned store
+          if (cachedStoresData.length > 0 && !selectedStore) {
+            const userStoreIds = user?.store_ids || [];
+            if (userStoreIds.length > 0) {
+              const assignedStore = cachedStoresData.find(s => userStoreIds.includes(s.id));
+              if (assignedStore) {
+                setSelectedStore(assignedStore.id);
+              } else {
+                setSelectedStore(cachedStoresData[0].id);
+              }
+            } else {
+              setSelectedStore(cachedStoresData[0].id);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Fetch error:', err);
+      // Try to load cached data on error
+      try {
+        const [cachedItems, cachedVariants, cachedCustomers, cachedStores] = await Promise.all([
+          getCachedItems(),
+          getCachedVariants(),
+          getCachedCustomers(),
+          getCachedStores()
+        ]);
+        
+        // Set default store - prioritize user's assigned store
+        if (cachedStores.length > 0 && !selectedStore) {
+          const userStoreIds = user?.store_ids || [];
+          if (userStoreIds.length > 0) {
+            const assignedStore = cachedStores.find(s => userStoreIds.includes(s.id));
+            if (assignedStore) {
+              setSelectedStore(assignedStore.id);
+            } else {
+              setSelectedStore(cachedStores[0].id);
+            }
+          } else {
+            setSelectedStore(cachedStores[0].id);
+          }
+        }
+        
+        if (cachedItems.length > 0) {
+          setItems(cachedItems);
+          setVariants(cachedVariants);
+          setCustomers(cachedCustomers);
+          setStores(cachedStores);
+          setUsingCachedData(true);
+          toast.warning('Connection error - using cached data');
+        }
+      } catch (cacheErr) {
+        toast.error('Failed to load data');
+      }
+    } finally {
+      setLoading(false);
+      
+      // Load hold orders from localStorage
+      const savedHoldOrders = localStorage.getItem('posHoldOrders');
+      if (savedHoldOrders) {
+        try {
+          setHoldOrders(JSON.parse(savedHoldOrders));
+        } catch (e) {
+          console.error('Failed to parse hold orders', e);
+        }
+      }
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const getVariantsForItem = (itemId) => variants.filter(v => v.item_id === itemId && v.active !== false);
+  
+  // Get stock for currently selected store
+  const getStock = (variantId, itemId = null, variantCurrentStock = null) => {
+    // If variant has current_stock, use it directly (most reliable)
+    if (variantCurrentStock !== null && variantCurrentStock !== undefined) {
+      return variantCurrentStock;
+    }
+    
+    // Find the variant to get its current_stock
+    const variant = variants.find(v => v.id === variantId);
+    if (variant && variant.current_stock !== undefined) {
+      return variant.current_stock;
+    }
+    
+    // Fallback to inventory collection lookup
+    const storeToCheck = selectedStore || (stores.length > 0 ? stores[0].id : '');
+    
+    // Try to find by variant_id and store_id
+    let inv = inventory.find(i => i.variant_id === variantId && i.store_id === storeToCheck);
+    
+    // If not found, try with 'default' store
+    if (!inv) {
+      inv = inventory.find(i => i.variant_id === variantId && i.store_id === 'default');
+    }
+    
+    // Try to find by item_id (legacy inventory)
+    if (!inv && itemId) {
+      inv = inventory.find(i => i.item_id === itemId && i.store_id === storeToCheck);
+    }
+    
+    // Final fallback - find any inventory with matching variant_id or item_id
+    if (!inv) {
+      inv = inventory.find(i => i.variant_id === variantId || (itemId && i.item_id === itemId));
+    }
+    
+    return inv?.quantity || 0;
+  };
+  
+  // Get stock availability across all stores for a variant
+  const getStoreAvailability = (variantId, itemId = null) => {
+    const storeStocks = inventory
+      .filter(i => (i.variant_id === variantId || (itemId && i.item_id === itemId)) && i.quantity > 0)
+      .map(inv => {
+        const store = stores.find(s => s.id === inv.store_id);
+        return {
+          store_id: inv.store_id,
+          store_name: store?.name || (inv.store_id === 'default' ? 'Default Store' : 'Unknown Store'),
+          quantity: inv.quantity
+        };
+      })
+      .sort((a, b) => b.quantity - a.quantity); // Sort by quantity descending
+    return storeStocks;
+  };
+
+  // Filter items to show only items available in the selected store
+  const storeAvailableItems = useMemo(() => {
+    if (!selectedStore) return items;
+    
+    // Get item IDs that have inventory in the selected store
+    const storeItemIds = new Set(
+      inventory
+        .filter(inv => inv.store_id === selectedStore && inv.quantity > 0)
+        .map(inv => inv.item_id)
+    );
+    
+    // Also include items that have variants with stock in this store
+    const storeVariantItemIds = new Set(
+      variants
+        .filter(v => {
+          const variantInventory = inventory.find(
+            inv => inv.variant_id === v.id && inv.store_id === selectedStore && inv.quantity > 0
+          );
+          return variantInventory;
+        })
+        .map(v => v.item_id)
+    );
+    
+    // If no inventory data, show all items (for new stores or data loading)
+    if (storeItemIds.size === 0 && storeVariantItemIds.size === 0) {
+      return items;
+    }
+    
+    // Combine both sets and filter items
+    return items.filter(item => 
+      storeItemIds.has(item.id) || storeVariantItemIds.has(item.id)
+    );
+  }, [items, inventory, variants, selectedStore]);
+
+  const filteredItems = useMemo(() => {
+    if (!search) return storeAvailableItems;
+    return storeAvailableItems.filter(i => 
+      i.name.toLowerCase().includes(search.toLowerCase()) ||
+      i.sku?.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [storeAvailableItems, search]);
+
+  const addToCart = (item, variant) => {
+    const stock = getStock(variant.id, item.id, variant.current_stock);
+    if (stock <= 0) {
+      toast.error('Out of stock');
+      return;
+    }
+
+    const existing = cart.find(c => c.variant_id === variant.id);
+    if (existing) {
+      if (existing.quantity >= stock) {
+        toast.error('Not enough stock');
+        return;
+      }
+      setCart(cart.map(c => 
+        c.variant_id === variant.id ? { ...c, quantity: c.quantity + 1 } : c
+      ));
+    } else {
+      setCart([...cart, {
+        item_id: item.id,
+        variant_id: variant.id,
+        item_name: item.name,
+        size: variant.size,
+        color: variant.color,
+        rate: variant.selling_price || item.selling_price,
+        mrp: variant.mrp || item.mrp,
+        gst_rate: item.gst_rate || parseInt(selectedGst),
+        gst_inclusive: item.gst_inclusive,
+        quantity: 1,
+        max_stock: stock
+      }]);
+    }
+    toast.success('Added to cart');
+  };
+
+  const updateQuantity = (variantId, delta) => {
+    setCart(cart.map(c => {
+      if (c.variant_id === variantId) {
+        const newQty = c.quantity + delta;
+        if (newQty <= 0) return null;
+        if (newQty > c.max_stock) {
+          toast.error('Not enough stock');
+          return c;
+        }
+        return { ...c, quantity: newQty };
+      }
+      return c;
+    }).filter(Boolean));
+  };
+
+  const removeFromCart = (variantId) => {
+    setCart(cart.filter(c => c.variant_id !== variantId));
+  };
+
+  const clearCart = () => {
+    setCart([]);
+    setSelectedCustomer(null);
+    setVoucherCode('');
+    setVoucherDiscount(0);
+    setPayments([{ method: 'cash', amount: 0 }]);
+    toast.success('Cart cleared');
+  };
+
+  // Hold Order Functions
+  const holdCurrentOrder = () => {
+    if (cart.length === 0) {
+      toast.error('Cart is empty');
+      return;
+    }
+    
+    const holdOrder = {
+      id: Date.now().toString(),
+      cart: [...cart],
+      customer: selectedCustomer,
+      timestamp: new Date().toISOString(),
+      store_id: selectedStore,
+    };
+    
+    const updatedHoldOrders = [...holdOrders, holdOrder];
+    setHoldOrders(updatedHoldOrders);
+    localStorage.setItem('posHoldOrders', JSON.stringify(updatedHoldOrders));
+    
+    // Clear current cart
+    setCart([]);
+    setSelectedCustomer(null);
+    toast.success('Order held successfully');
+  };
+
+  const restoreHoldOrder = (holdOrder) => {
+    setCart(holdOrder.cart);
+    setSelectedCustomer(holdOrder.customer);
+    
+    // Remove from hold orders
+    const updatedHoldOrders = holdOrders.filter(o => o.id !== holdOrder.id);
+    setHoldOrders(updatedHoldOrders);
+    localStorage.setItem('posHoldOrders', JSON.stringify(updatedHoldOrders));
+    
+    setShowHoldOrders(false);
+    toast.success('Order restored');
+  };
+
+  const deleteHoldOrder = (orderId) => {
+    const updatedHoldOrders = holdOrders.filter(o => o.id !== orderId);
+    setHoldOrders(updatedHoldOrders);
+    localStorage.setItem('posHoldOrders', JSON.stringify(updatedHoldOrders));
+    toast.success('Hold order deleted');
+  };
+
+  // Add New Customer
+  const handleAddCustomer = async () => {
+    if (!newCustomer.name || !newCustomer.phone) {
+      toast.error('Name and phone are required');
+      return;
+    }
+    
+    try {
+      const result = await api('/api/customers', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...newCustomer,
+          loyalty_points: 0,
+        }),
+      });
+      
+      setCustomers([...customers, result]);
+      setSelectedCustomer(result);
+      setShowAddCustomer(false);
+      setNewCustomer({ name: '', phone: '', email: '', gst_number: '', customer_type: 'retail' });
+      toast.success('Customer added successfully');
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  // Payment Functions
+  const addPaymentMethod = () => {
+    setPayments([...payments, { method: 'cash', amount: 0 }]);
+  };
+
+  const updatePayment = (index, field, value) => {
+    const updated = [...payments];
+    updated[index][field] = field === 'amount' ? parseFloat(value) || 0 : value;
+    setPayments(updated);
+  };
+
+  const removePayment = (index) => {
+    if (payments.length > 1) {
+      setPayments(payments.filter((_, i) => i !== index));
+    }
+  };
+
+  const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+  // Calculations - GST Inclusive means price already includes GST
+  const gstRate = parseInt(selectedGst);
+  
+  // For GST Inclusive: Total = Selling Price, GST = Price * (rate / (100 + rate))
+  // For GST Exclusive: Total = Price + GST, GST = Price * (rate / 100)
+  const subtotal = cart.reduce((sum, c) => sum + (c.rate * c.quantity), 0);
+  
+  const gstAmount = gstInclusive 
+    ? cart.reduce((sum, c) => {
+        const gst = (c.rate * c.quantity * gstRate) / (100 + gstRate);
+        return sum + gst;
+      }, 0)
+    : cart.reduce((sum, c) => {
+        return sum + (c.rate * c.quantity * gstRate / 100);
+      }, 0);
+  
+  // Calculate manual discount
+  const calculatedManualDiscount = discountType === 'percent' 
+    ? (subtotal * manualDiscount / 100) 
+    : manualDiscount;
+  
+  // Total discounts (including auto-applied discounts from Discount Manager)
+  const totalDiscount = voucherDiscount + calculatedManualDiscount + loyaltyPointsValue + autoAppliedDiscounts.totalAutoDiscount;
+  
+  // For inclusive: total is same as subtotal (GST already in price)
+  // For exclusive: total = subtotal + GST
+  const totalAmount = gstInclusive 
+    ? Math.max(0, subtotal - totalDiscount)
+    : Math.max(0, subtotal + gstAmount - totalDiscount);
+
+  // Get customer loyalty points - use cached settings when offline
+  const customerLoyaltyPoints = selectedCustomer?.loyalty_points || 0;
+  const loyaltyRedemptionRate = cachedLoyaltySettings?.redemption_rate || 0.1; // Default 10%
+  const maxLoyaltyPointsRedeemable = Math.min(customerLoyaltyPoints, Math.floor(subtotal * loyaltyRedemptionRate));
+
+  const applyVoucher = async () => {
+    if (!voucherCode) return;
+    
+    // Check if cart has items
+    if (cart.length === 0 || subtotal <= 0) {
+      toast.error('Add items to cart first');
+      return;
+    }
+    
+    // Try offline validation first if offline
+    if (!isOnline) {
+      try {
+        const result = await validateVoucherOffline(voucherCode, subtotal);
+        if (result.valid) {
+          setVoucherDiscount(result.calculated_discount);
+          setVoucherApplied(true);
+          toast.success(`Voucher applied offline! Discount: ${formatCurrency(result.calculated_discount)}`);
+        } else {
+          toast.error(result.error || 'Invalid voucher');
+          setVoucherDiscount(0);
+          setVoucherApplied(false);
+        }
+      } catch (err) {
+        toast.error('Voucher validation unavailable offline. Please cache data first.');
+        setVoucherDiscount(0);
+        setVoucherApplied(false);
+      }
+      return;
+    }
+    
+    // Online validation
+    try {
+      const result = await api(`/api/vouchers/validate/${voucherCode.toUpperCase()}?amount=${subtotal}`);
+      setVoucherDiscount(result.calculated_discount);
+      setVoucherApplied(true);
+      toast.success(`Voucher applied! Discount: ${formatCurrency(result.calculated_discount)}`);
+    } catch (err) {
+      // Extract the actual error message from the API response
+      let errorMsg = err.message || 'Invalid voucher code';
+      
+      // Map common error messages to user-friendly versions
+      if (errorMsg.includes('expired') || errorMsg.includes('not yet valid')) {
+        errorMsg = 'This voucher has expired or is not yet active';
+      } else if (errorMsg.includes('usage limit')) {
+        errorMsg = 'This voucher has reached its usage limit';
+      } else if (errorMsg.includes('Minimum purchase')) {
+        // Keep the original message as it contains the amount
+      } else if (errorMsg.includes('Invalid voucher') || errorMsg.includes('status 404')) {
+        errorMsg = 'Invalid voucher code. Please check and try again';
+      } else if (errorMsg.includes('status 400')) {
+        errorMsg = 'This voucher cannot be applied. Please check the requirements';
+      }
+      
+      toast.error(errorMsg);
+      setVoucherDiscount(0);
+      setVoucherApplied(false);
+    }
+  };
+
+  const removeVoucher = () => {
+    setVoucherCode('');
+    setVoucherDiscount(0);
+    setVoucherApplied(false);
+  };
+
+  // Auto-fetch and apply discounts from Discount Manager
+  const fetchAutoApplyDiscounts = async () => {
+    if (cart.length === 0 || subtotal <= 0) {
+      setAutoAppliedDiscounts({
+        itemDiscounts: [],
+        bogoDiscounts: [],
+        tieredDiscount: null,
+        totalAutoDiscount: 0
+      });
+      return;
+    }
+
+    try {
+      // Prepare cart items for discount calculation
+      const cartItems = cart.map(item => ({
+        item_id: item.item_id,
+        variant_id: item.variant_id,
+        category_id: item.category_id || '',
+        brand_id: item.brand_id || '',
+        quantity: item.quantity,
+        price: item.rate
+      }));
+
+      // Call the centralized discount calculation API
+      const result = await api('/api/discounts/calculate-all', {
+        method: 'POST',
+        body: JSON.stringify({
+          cart_items: cartItems,
+          cart_total: subtotal,
+          store_id: selectedStore,
+          apply_on: 'pos' // We're in POS
+        })
+      });
+
+      if (result) {
+        const totalAutoDiscount = (result.total_discount || 0);
+        
+        setAutoAppliedDiscounts({
+          itemDiscounts: result.item_discounts || [],
+          bogoDiscounts: result.bogo_discounts || [],
+          tieredDiscount: result.tiered_discount,
+          totalAutoDiscount: totalAutoDiscount
+        });
+
+        // Show toast only if discounts were applied
+        if (totalAutoDiscount > 0 && !autoAppliedDiscounts.totalAutoDiscount) {
+          toast.success(`Auto-applied discount: ${formatCurrency(totalAutoDiscount)}`);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch auto-apply discounts:', err);
+      // Don't show error to user, just fail silently
+    }
+  };
+
+  // Fetch auto-apply discounts when cart or store changes
+  // Fetch immediately when cart changes (not just when checkout opens)
+  useEffect(() => {
+    if (cart.length > 0 && isOnline) {
+      // Add debounce to avoid too many API calls during rapid cart changes
+      const timeoutId = setTimeout(() => {
+        fetchAutoApplyDiscounts();
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    } else if (cart.length === 0) {
+      // Reset discounts when cart is empty
+      setAutoAppliedDiscounts({
+        itemDiscounts: [],
+        bogoDiscounts: [],
+        tieredDiscount: null,
+        totalAutoDiscount: 0
+      });
+    }
+  }, [cart, selectedStore, subtotal, isOnline]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const applyLoyaltyPoints = (points) => {
+    const value = Math.min(points, maxLoyaltyPointsRedeemable);
+    setUseLoyaltyPoints(value);
+    setLoyaltyPointsValue(value); // 1 point = 1 currency unit
+    if (value > 0) {
+      toast.success(`${value} loyalty points applied (${formatCurrency(value)} off)`);
+    }
+  };
+
+  // Quick sale for cash checkout - takes payment directly without state dependency
+  const quickCompleteSale = async (cashAmount) => {
+    if (cart.length === 0) {
+      toast.error('Cart is empty');
+      return;
+    }
+
+    if (cashAmount < totalAmount) {
+      toast.error(`Payment incomplete. Remaining: ${formatCurrency(totalAmount - cashAmount)}`);
+      return;
+    }
+
+    const saleData = {
+      store_id: selectedStore,
+      customer_id: selectedCustomer?.id || null,
+      customer_name: selectedCustomer?.name || 'Walk-in Customer',
+      customer_phone: selectedCustomer?.phone || null,
+      items: cart,
+      subtotal,
+      discount_amount: calculatedManualDiscount + autoAppliedDiscounts.totalAutoDiscount,
+      auto_discount_amount: autoAppliedDiscounts.totalAutoDiscount,
+      auto_discounts_applied: {
+        item_discounts: autoAppliedDiscounts.itemDiscounts,
+        bogo_discounts: autoAppliedDiscounts.bogoDiscounts,
+        tiered_discount: autoAppliedDiscounts.tieredDiscount
+      },
+      voucher_code: voucherCode || null,
+      voucher_discount: voucherDiscount,
+      loyalty_points_used: useLoyaltyPoints,
+      loyalty_points_value: loyaltyPointsValue,
+      gst_amount: gstAmount,
+      gst_rate: parseInt(selectedGst),
+      total_amount: totalAmount,
+      payment_methods: [{ method: 'cash', amount: cashAmount }],
+      payment_method: 'cash',
+    };
+
+    try {
+      let result;
+      
+      if (isOnline) {
+        result = await api('/api/sales', { method: 'POST', body: JSON.stringify(saleData) });
+      } else {
+        result = await saveSaleOffline(saleData);
+        result.invoice_number = result.offline_id;
+      }
+      
+      setLastSale({
+        ...result,
+        ...saleData,
+        invoice_number: result.invoice_number || result.offline_id,
+        created_at: new Date().toISOString(),
+        store_name: stores.find(s => s.id === selectedStore)?.name || 'Store',
+        is_offline: !isOnline
+      });
+      
+      setTodaysSales(prev => prev + totalAmount);
+      setTodaysOrders(prev => prev + 1);
+      
+      setShowQuickCheckout(false);
+      setShowReceipt(true);
+      
+      toast.success(isOnline 
+        ? `Sale completed! Invoice: ${result.invoice_number}` 
+        : `Sale saved offline! ID: ${result.offline_id}`
+      );
+      
+      setCart([]);
+      setSelectedCustomer(null);
+      setVoucherCode('');
+      setVoucherDiscount(0);
+      setVoucherApplied(false);
+      setManualDiscount(0);
+      setUseLoyaltyPoints(0);
+      setLoyaltyPointsValue(0);
+      setPayments([{ method: 'cash', amount: 0 }]);
+      setCashReceived(0);
+      
+      if (isOnline) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Quick sale error:', err);
+      toast.error('Failed to process sale: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const completeSale = async () => {
+    if (cart.length === 0) {
+      toast.error('Cart is empty');
+      return;
+    }
+
+    if (totalPaid < totalAmount) {
+      toast.error(`Payment incomplete. Remaining: ${formatCurrency(totalAmount - totalPaid)}`);
+      return;
+    }
+
+    const saleData = {
+      store_id: selectedStore,
+      customer_id: selectedCustomer?.id || null,
+      customer_name: selectedCustomer?.name || 'Walk-in Customer',
+      customer_phone: selectedCustomer?.phone || null,
+      items: cart,
+      subtotal,
+      discount_amount: calculatedManualDiscount + autoAppliedDiscounts.totalAutoDiscount,
+      auto_discount_amount: autoAppliedDiscounts.totalAutoDiscount,
+      auto_discounts_applied: {
+        item_discounts: autoAppliedDiscounts.itemDiscounts,
+        bogo_discounts: autoAppliedDiscounts.bogoDiscounts,
+        tiered_discount: autoAppliedDiscounts.tieredDiscount
+      },
+      voucher_code: voucherCode || null,
+      voucher_discount: voucherDiscount,
+      loyalty_points_used: useLoyaltyPoints,
+      loyalty_points_value: loyaltyPointsValue,
+      gst_amount: gstAmount,
+      gst_rate: parseInt(selectedGst),
+      total_amount: totalAmount,
+      payment_methods: payments.filter(p => p.amount > 0),
+      payment_method: payments[0].method,
+    };
+
+    try {
+      let result;
+      
+      if (isOnline) {
+        // Online mode - send to server
+        result = await api('/api/sales', { method: 'POST', body: JSON.stringify(saleData) });
+      } else {
+        // Offline mode - save locally
+        result = await saveSaleOffline(saleData);
+        result.invoice_number = result.offline_id; // Use offline_id as invoice number
+      }
+      
+      // Save last sale for receipt
+      setLastSale({
+        ...result,
+        ...saleData,
+        invoice_number: result.invoice_number || result.offline_id,
+        created_at: new Date().toISOString(),
+        store_name: stores.find(s => s.id === selectedStore)?.name || 'Store',
+        is_offline: !isOnline
+      });
+      
+      // Update today's sales
+      setTodaysSales(prev => prev + totalAmount);
+      setTodaysOrders(prev => prev + 1);
+      
+      // Show receipt modal
+      setShowCheckout(false);
+      setShowReceipt(true);
+      
+      toast.success(isOnline 
+        ? `Sale completed! Invoice: ${result.invoice_number}` 
+        : `Sale saved offline! ID: ${result.offline_id}`
+      );
+      
+      // Reset cart but keep receipt data
+      setCart([]);
+      setSelectedCustomer(null);
+      setVoucherCode('');
+      setVoucherDiscount(0);
+      setVoucherApplied(false);
+      setManualDiscount(0);
+      setUseLoyaltyPoints(0);
+      setLoyaltyPointsValue(0);
+      setPayments([{ method: 'cash', amount: 0 }]);
+      
+      if (isOnline) {
+        fetchData();
+      }
+    } catch (err) {
+      // If online fails, try offline
+      if (isOnline) {
+        try {
+          const offlineResult = await saveSaleOffline(saleData);
+          setLastSale({
+            ...offlineResult,
+            ...saleData,
+            invoice_number: offlineResult.offline_id,
+            created_at: new Date().toISOString(),
+            store_name: stores.find(s => s.id === selectedStore)?.name || 'Store',
+            is_offline: true
+          });
+          setShowCheckout(false);
+          setShowReceipt(true);
+          toast.warning('Server error - sale saved offline', { 
+            description: 'Will sync when connection is restored' 
+          });
+          setCart([]);
+          setSelectedCustomer(null);
+          setVoucherCode('');
+          setVoucherDiscount(0);
+          setVoucherApplied(false);
+          setManualDiscount(0);
+          setPayments([{ method: 'cash', amount: 0 }]);
+        } catch (offlineErr) {
+          toast.error('Failed to save sale');
+        }
+      } else {
+        toast.error(err.message);
+      }
+    }
+  };
+
+  // Print receipt
+  const handlePrint = () => {
+    // Get currency symbol for receipt
+    const receiptCurrencySymbol = CURRENCIES[displayCurrency]?.symbol || '₹';
+    
+    // Use react-to-print for better printing
+    const printContent = document.getElementById('receipt');
+    if (printContent) {
+      const printWindow = window.open('', '_blank');
+      const settings = invoiceSettings || {};
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Receipt - ${lastSale?.invoice_number || 'Receipt'}</title>
+            <style>
+              body { font-family: 'Courier New', monospace; font-size: 12px; padding: 20px; max-width: 280px; margin: 0 auto; }
+              .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+              .header h3 { margin: 0; font-size: 16px; }
+              .header p { margin: 5px 0 0; font-size: 10px; color: #666; }
+              .info { margin-bottom: 10px; }
+              .info-row { display: flex; justify-content: space-between; }
+              .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; }
+              .item-row { display: flex; justify-content: space-between; margin: 5px 0; }
+              .totals { padding-top: 10px; }
+              .total-row { display: flex; justify-content: space-between; margin: 5px 0; }
+              .grand-total { font-weight: bold; font-size: 14px; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
+              .terms { margin-top: 15px; padding-top: 10px; border-top: 1px dashed #000; font-size: 9px; color: #666; }
+              .terms-title { font-weight: bold; font-size: 10px; margin-bottom: 5px; }
+              .footer { text-align: center; margin-top: 15px; font-size: 10px; color: #666; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h3>${settings.company_name || 'Your Store'}</h3>
+              <p>${lastSale?.store_name || 'Store'}</p>
+              ${settings.company_phone ? `<p>📞 ${settings.company_phone}</p>` : ''}
+            </div>
+            <div class="info">
+              <div class="info-row"><span>Invoice:</span><span>${lastSale?.invoice_number}</span></div>
+              <div class="info-row"><span>Date:</span><span>${new Date(lastSale?.created_at).toLocaleString()}</span></div>
+              <div class="info-row"><span>Customer:</span><span>${lastSale?.customer_name || 'Walk-in'}</span></div>
+            </div>
+            <div class="items">
+              ${lastSale?.items?.map(i => `<div class="item-row"><span>${i.item_name} x${i.quantity}</span><span>${currencySymbol}${(i.rate * i.quantity).toLocaleString()}</span></div>`).join('')}
+            </div>
+            <div class="totals">
+              <div class="total-row"><span>Subtotal</span><span>${currencySymbol}${lastSale?.subtotal?.toLocaleString()}</span></div>
+              ${lastSale?.voucher_discount > 0 ? `<div class="total-row" style="color: green;"><span>Voucher</span><span>-${currencySymbol}${lastSale?.voucher_discount}</span></div>` : ''}
+              ${lastSale?.discount_amount > 0 ? `<div class="total-row" style="color: green;"><span>Discount</span><span>-${currencySymbol}${lastSale?.discount_amount?.toFixed(2)}</span></div>` : ''}
+              ${lastSale?.loyalty_points_value > 0 ? `<div class="total-row" style="color: orange;"><span>Loyalty</span><span>-${currencySymbol}${lastSale?.loyalty_points_value}</span></div>` : ''}
+              <div class="total-row grand-total"><span>TOTAL</span><span>${currencySymbol}${lastSale?.total_amount?.toLocaleString()}</span></div>
+            </div>
+            ${(settings.terms_and_conditions || settings.return_policy) ? `
+              <div class="terms">
+                ${settings.terms_and_conditions ? `<div class="terms-title">Terms & Conditions:</div><p>${settings.terms_and_conditions}</p>` : ''}
+                ${settings.return_policy ? `<p><strong>Return Policy:</strong> ${settings.return_policy}</p>` : ''}
+                ${settings.warranty_info ? `<p><strong>Warranty:</strong> ${settings.warranty_info}</p>` : ''}
+              </div>
+            ` : ''}
+            <div class="footer">${settings.footer_text || 'Thank you for shopping!'}</div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    }
+  };
+
+  // Download PDF using jsPDF
+  const handleDownloadPDF = async () => {
+    if (!lastSale) return;
+    
+    const settings = invoiceSettings || {};
+    const pdfCurrencySymbol = CURRENCIES[displayCurrency]?.symbol || '₹';
+    
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ unit: 'mm', format: [80, 150] });
+      
+      let y = 10;
+      const lineHeight = 5;
+      const leftMargin = 5;
+      const rightMargin = 75;
+      
+      // Header
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(settings?.company_name || 'Your Store', 40, y, { align: 'center' });
+      y += lineHeight;
+      
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(lastSale.store_name || 'Store', 40, y, { align: 'center' });
+      y += lineHeight + 2;
+      
+      // Dashed line
+      doc.setLineDash([1, 1]);
+      doc.line(leftMargin, y, rightMargin, y);
+      y += lineHeight;
+      
+      // Info
+      doc.setFontSize(8);
+      doc.text(`Invoice: ${lastSale.invoice_number}`, leftMargin, y);
+      y += lineHeight;
+      doc.text(`Date: ${new Date(lastSale.created_at).toLocaleString()}`, leftMargin, y);
+      y += lineHeight;
+      doc.text(`Customer: ${lastSale.customer_name || 'Walk-in'}`, leftMargin, y);
+      y += lineHeight + 2;
+      
+      // Items
+      doc.line(leftMargin, y, rightMargin, y);
+      y += lineHeight;
+      
+      lastSale.items?.forEach(item => {
+        const itemText = `${item.item_name} x${item.quantity}`;
+        const priceText = `${currencySymbol}${(item.rate * item.quantity).toLocaleString()}`;
+        doc.text(itemText, leftMargin, y);
+        doc.text(priceText, rightMargin, y, { align: 'right' });
+        y += lineHeight;
+      });
+      
+      y += 2;
+      doc.line(leftMargin, y, rightMargin, y);
+      y += lineHeight;
+      
+      // Totals
+      doc.text('Subtotal', leftMargin, y);
+      doc.text(`${currencySymbol}${lastSale.subtotal?.toLocaleString()}`, rightMargin, y, { align: 'right' });
+      y += lineHeight;
+      
+      if (lastSale.voucher_discount > 0) {
+        doc.text('Voucher', leftMargin, y);
+        doc.text(`-${currencySymbol}${lastSale.voucher_discount}`, rightMargin, y, { align: 'right' });
+        y += lineHeight;
+      }
+      
+      if (lastSale.discount_amount > 0) {
+        doc.text('Discount', leftMargin, y);
+        doc.text(`-${currencySymbol}${lastSale.discount_amount?.toFixed(2)}`, rightMargin, y, { align: 'right' });
+        y += lineHeight;
+      }
+      
+      y += 2;
+      doc.setLineDash([]);
+      doc.line(leftMargin, y, rightMargin, y);
+      y += lineHeight;
+      
+      // Grand Total
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('TOTAL', leftMargin, y);
+      doc.text(`${currencySymbol}${lastSale.total_amount?.toLocaleString()}`, rightMargin, y, { align: 'right' });
+      y += lineHeight + 3;
+      
+      // Terms & Conditions (if available)
+      if (settings.terms_and_conditions || settings.return_policy) {
+        doc.setLineDash([1, 1]);
+        doc.line(leftMargin, y, rightMargin, y);
+        y += lineHeight;
+        doc.setLineDash([]);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6);
+        
+        if (settings.terms_and_conditions) {
+          doc.setFont('helvetica', 'bold');
+          doc.text('Terms:', leftMargin, y);
+          doc.setFont('helvetica', 'normal');
+          y += 3;
+          const termsLines = doc.splitTextToSize(settings.terms_and_conditions, rightMargin - leftMargin);
+          doc.text(termsLines.slice(0, 3), leftMargin, y); // Limit to 3 lines
+          y += termsLines.slice(0, 3).length * 2.5 + 2;
+        }
+        
+        if (settings.return_policy) {
+          doc.setFont('helvetica', 'bold');
+          doc.text('Return: ', leftMargin, y);
+          doc.setFont('helvetica', 'normal');
+          const policyLines = doc.splitTextToSize(settings.return_policy, rightMargin - leftMargin - 10);
+          doc.text(policyLines.slice(0, 2), leftMargin + 10, y); // Limit to 2 lines
+          y += policyLines.slice(0, 2).length * 2.5 + 2;
+        }
+      }
+      
+      y += 3;
+      
+      // Footer
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text(settings.footer_text || 'Thank you for shopping!', 40, y, { align: 'center' });
+      
+      doc.save(`receipt_${lastSale.invoice_number}.pdf`);
+      toast.success('PDF downloaded!');
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      toast.error('Failed to generate PDF');
+    }
+  };
+
+  // Share via WhatsApp
+  const handleWhatsApp = () => {
+    if (!lastSale) return;
+    const whatsappCurrencySymbol = CURRENCIES[displayCurrency]?.symbol || '₹';
+    const storeName = invoiceSettings?.company_name || lastSale?.store_name || 'Your Store';
+    const message = `🧾 *Receipt from ${storeName}*\n\nInvoice: ${lastSale.invoice_number}\nDate: ${new Date(lastSale.created_at).toLocaleString()}\n\nItems:\n${lastSale.items?.map(i => `• ${i.item_name} x${i.quantity} = ${whatsappCurrencySymbol}${(i.rate * i.quantity).toLocaleString()}`).join('\n')}\n\nSubtotal: ${whatsappCurrencySymbol}${lastSale.subtotal?.toLocaleString()}\nDiscount: ${whatsappCurrencySymbol}${(lastSale.voucher_discount + lastSale.discount_amount + lastSale.loyalty_points_value).toLocaleString()}\n*Total: ${whatsappCurrencySymbol}${lastSale.total_amount?.toLocaleString()}*\n\nThank you for shopping!`;
+    const phone = lastSale.customer_phone || '';
+    const url = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
+  // Auto-fill first payment with total amount when opening checkout
+  const openCheckout = () => {
+    setPayments([{ method: 'cash', amount: totalAmount }]);
+    setShowCheckout(true);
+  };
+
+  // Navigate to Dashboard
+  const goToDashboard = () => {
+    if (onNavigate) {
+      onNavigate('dashboard');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-[calc(100vh-5rem)] flex flex-col" data-testid="pos-page">
+      {/* Top Header Bar - Mobile Responsive */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-2 sm:px-4 py-2 sm:py-3">
+        {/* Mobile: Compact header */}
+        <div className="flex items-center justify-between gap-2 sm:gap-6 flex-wrap">
+          {/* POS Logo - Hidden on mobile */}
+          <div className="hidden sm:flex items-center gap-2">
+            <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
+              <ShoppingCart className="w-5 h-5 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-red-600 dark:text-red-400">POS</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Point of Sale</p>
+            </div>
+          </div>
+
+          {/* Store Selector */}
+          <Select value={selectedStore} onValueChange={setSelectedStore}>
+            <SelectTrigger className="w-28 sm:w-40 border-gray-200 dark:border-gray-600 text-xs sm:text-sm">
+              <SelectValue placeholder="Store" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableStores.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          {/* GST Selector with Inclusive Toggle */}
+          <div className="flex items-center gap-1 sm:gap-2 bg-gray-100 dark:bg-gray-700 rounded-lg px-1.5 sm:px-2 py-1">
+            <Select value={selectedGst} onValueChange={setSelectedGst}>
+              <SelectTrigger className="w-16 sm:w-24 border-0 bg-transparent shadow-none text-xs sm:text-sm">
+                <Percent className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                <SelectValue placeholder="GST" />
+              </SelectTrigger>
+              <SelectContent>
+                {GST_RATES.map(rate => (
+                  <SelectItem key={rate.value} value={rate.value}>{rate.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <button
+              onClick={() => setGstInclusive(!gstInclusive)}
+              className={`px-1.5 sm:px-2 py-1 text-[10px] sm:text-xs font-medium rounded ${gstInclusive ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}`}
+              title={gstInclusive ? 'GST Inclusive (Price includes GST)' : 'GST Exclusive (GST added separately)'}
+            >
+              {gstInclusive ? 'Incl' : 'Excl'}
+            </button>
+          </div>
+
+          {/* Refresh Button */}
+          <Button variant="ghost" size="icon" onClick={fetchData} className="text-gray-500 dark:text-gray-400 w-8 h-8 sm:w-10 sm:h-10" title="Refresh Data">
+            <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
+          </Button>
+          
+          {/* Sync Button */}
+          <SyncBar api={api} onSyncComplete={fetchData} variant="button" className="hidden sm:flex" />
+
+        {/* Today's Stats - Hidden on mobile, shown on larger screens */}
+        <div className="hidden md:flex items-center gap-4">
+          {/* Offline Indicator */}
+          {(!isOnline || usingCachedData || pendingSalesCount > 0) && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+              !isOnline 
+                ? 'bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800' 
+                : 'bg-amber-100 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800'
+            }`}>
+              <WifiOff className={`w-4 h-4 ${!isOnline ? 'text-red-600' : 'text-amber-600'}`} />
+              <div className="text-xs">
+                <p className={`font-semibold ${!isOnline ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                  {!isOnline ? 'Offline' : usingCachedData ? 'Cached Data' : `${pendingSalesCount} Pending`}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Cache Data Button */}
+          {isOnline && !usingCachedData && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="gap-1"
+              onClick={cacheDataForOffline}
+              title="Cache data for offline use"
+            >
+              <Download className="w-4 h-4" />
+              Cache
+            </Button>
+          )}
+
+          {/* Today's Sales */}
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded-lg px-4 py-2 min-w-[120px]">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Today&apos;s Sales</p>
+            <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(todaysSales)}</p>
+          </div>
+
+          {/* Orders */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg px-4 py-2 min-w-[80px]">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Orders</p>
+            <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{todaysOrders}</p>
+          </div>
+
+          {/* Hold */}
+          <Button 
+            variant="outline" 
+            className="gap-2 relative"
+            onClick={() => setShowHoldOrders(true)}
+            data-testid="hold-orders-btn"
+          >
+            <Clock className="w-4 h-4" />
+            Hold ({holdOrders.length})
+            {holdOrders.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                {holdOrders.length}
+              </span>
+            )}
+          </Button>
+
+          {/* Dashboard */}
+          <Button variant="outline" className="gap-2" onClick={goToDashboard} data-testid="dashboard-btn">
+            <LayoutDashboard className="w-4 h-4" />
+            Dashboard
+          </Button>
+        </div>
+
+        {/* Mobile: Compact stats row */}
+        <div className="flex md:hidden items-center gap-2 mt-2 w-full overflow-x-auto">
+          <div className="bg-red-50 dark:bg-red-900/20 rounded px-2 py-1 flex-shrink-0">
+            <span className="text-xs text-red-600 dark:text-red-400 font-semibold">{formatCurrency(todaysSales)}</span>
+          </div>
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 flex-shrink-0">
+            <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold">{todaysOrders} orders</span>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="gap-1 h-7 text-xs flex-shrink-0"
+            onClick={() => setShowHoldOrders(true)}
+          >
+            <Clock className="w-3 h-3" />
+            {holdOrders.length}
+          </Button>
+        </div>
+        </div>
+      </div>
+
+      {/* Quick Action Tiles - Scrollable on mobile */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-2 sm:px-4 py-2 sm:py-3 overflow-x-auto">
+        <div className="flex items-center gap-2 min-w-max">
+          <span className="text-xs text-gray-500 mr-1 sm:mr-2 hidden sm:inline">Quick:</span>
+          {POS_QUICK_ACTIONS.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.id}
+                onClick={() => onNavigate && onNavigate(action.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${action.color} text-white text-xs font-medium transition-all hover:opacity-90 active:scale-95 shadow-sm`}
+                data-testid={`pos-quick-${action.id}`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{action.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main Content - Responsive Layout */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        {/* Products Section */}
+        <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 lg:border-r border-gray-200 dark:border-gray-700 min-h-0">
+          {/* Search Bar with Barcode Scanner */}
+          <div className="p-2 sm:p-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                <Input
+                  ref={searchInputRef}
+                  placeholder="Search items... (Press / to focus)"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 sm:pl-10 h-9 sm:h-11 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-sm"
+                  data-testid="pos-search"
+                />
+              </div>
+              {/* Camera Scanner Button */}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setShowBarcodeScanner(true)}
+                className="h-9 sm:h-11 w-9 sm:w-11 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-0"
+                title="Open camera scanner"
+                data-testid="camera-scanner-btn"
+              >
+                <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
+              </Button>
+            </div>
+            {/* Manual Barcode Input */}
+            <div className="mt-2 flex items-center gap-2">
+              <Input
+                ref={barcodeInputRef}
+                placeholder="Enter barcode manually..."
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && barcodeInput.trim()) {
+                    handleBarcodeScan(barcodeInput.trim());
+                  }
+                }}
+                className="h-8 text-xs bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 font-mono"
+                data-testid="barcode-input"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => barcodeInput.trim() && handleBarcodeScan(barcodeInput.trim())}
+                disabled={!barcodeInput.trim()}
+                className="h-8 text-xs"
+                data-testid="scan-barcode-btn"
+              >
+                <ScanBarcode className="w-3 h-3 mr-1" />
+                Scan
+              </Button>
+            </div>
+          </div>
+
+          {/* HIGH-SPEED BILLING: Favorites/Quick Add Section - Always show toggle header */}
+          <div className="border-b border-gray-100 dark:border-gray-700">
+            {/* Toggle Header - Always visible */}
+            <div className="w-full px-2 sm:px-4 py-2 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20">
+              {/* Left side - clickable to toggle expand/collapse */}
+              <button
+                onClick={() => setShowQuickAdd(!showQuickAdd)}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                data-testid="toggle-quick-add-btn"
+              >
+                <Star className="w-4 h-4 text-amber-500" />
+                <span className="text-sm font-medium text-amber-700 dark:text-amber-400">Quick Add</span>
+                <span className="text-xs text-amber-600 dark:text-amber-500">
+                  {favoriteItems.length > 0 ? `(${favoriteItems.length} items)` : '(No favorites set)'}
+                </span>
+                {favoriteItems.length > 0 && (
+                  showQuickAdd ? (
+                    <ChevronUp className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  )
+                )}
+              </button>
+              
+              {/* Right side - + button to open Manage Favorites directly */}
+              <button
+                onClick={() => {
+                  setShowQuickAdd(true); // Expand the section
+                  setOpenManageFavorites(true); // Open the manage dialog
+                }}
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+                title="Add/Manage Favorites"
+                data-testid="add-favorites-btn"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
+            {/* Collapsible Content - Only show when expanded */}
+            {showQuickAdd && (
+              <div className="px-2 sm:px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20">
+                <FavoritesSection
+                  favoriteItems={favoriteItems}
+                  items={items}
+                  variants={variants}
+                  selectedStore={selectedStore}
+                  onAddToCart={addToCart}
+                  onRefreshFavorites={fetchFavorites}
+                  api={api}
+                  formatCurrency={formatCurrency}
+                  autoOpenManage={openManageFavorites}
+                  onManageClose={() => setOpenManageFavorites(false)}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Category Tab */}
+          <div className="px-2 sm:px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+            <Button className="gap-2 bg-red-600 hover:bg-red-700 text-white h-8 text-xs sm:text-sm">
+              <Package className="w-3 h-3 sm:w-4 sm:h-4" />
+              All Items
+            </Button>
+          </div>
+
+          {/* Products Grid - Responsive */}
+          <div className="flex-1 overflow-y-auto p-2 sm:p-4">
+            {filteredItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-400 py-8">
+                <Package className="w-12 h-12 sm:w-16 sm:h-16 mb-4 opacity-50" />
+                <p className="text-base sm:text-lg font-medium text-gray-500">No items found</p>
+                <p className="text-xs sm:text-sm text-center px-4">Add items in Inventory first</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3">
+                {filteredItems.map((item) => {
+                  const itemVariants = getVariantsForItem(item.id);
+                  return itemVariants.map((variant) => {
+                    const stock = getStock(variant.id, item.id, variant.current_stock);
+                    const storeAvail = getStoreAvailability(variant.id, item.id);
+                    return (
+                      <Card 
+                        key={variant.id} 
+                        className={`cursor-pointer transition-all hover:shadow-md active:scale-95 border-gray-200 ${stock <= 0 ? 'opacity-50' : ''}`}
+                        onClick={() => addToCart(item, variant)}
+                      >
+                        <CardContent className="p-2 sm:p-3">
+                          <div className="aspect-square bg-gray-100 rounded-md mb-1.5 sm:mb-2 flex items-center justify-center text-xl sm:text-3xl font-bold text-gray-400">
+                            {item.name.charAt(0)}
+                          </div>
+                          <h4 className="font-medium text-xs sm:text-sm truncate">{item.name}</h4>
+                          <p className="text-[10px] sm:text-xs text-gray-500 truncate">
+                            {variant.size && `${variant.size}`}{variant.size && variant.color && ' / '}{variant.color && `${variant.color}`}
+                          </p>
+                          <div className="flex items-center justify-between mt-1.5 sm:mt-2">
+                            <span className="font-bold text-sm sm:text-base">{formatCurrency(variant.selling_price || item.selling_price || 0)}</span>
+                            <span className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full ${stock > 5 ? 'bg-green-100 text-green-700' : stock > 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                              {stock}
+                            </span>
+                          </div>
+                          {/* Store availability */}
+                          {storeAvail.length > 0 && (
+                            <div className="mt-1.5 pt-1.5 border-t border-gray-100">
+                              <p className="text-[9px] text-gray-400 mb-0.5">Available at:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {storeAvail.slice(0, 2).map((sa, idx) => (
+                                  <span 
+                                    key={idx} 
+                                    className={`text-[8px] px-1 py-0.5 rounded ${sa.store_id === selectedStore ? 'bg-primary/20 text-primary font-medium' : 'bg-gray-100 text-gray-600'}`}
+                                    title={`${sa.store_name}: ${sa.quantity} in stock`}
+                                  >
+                                    {sa.store_name.split(' ').slice(-1)[0]} ({sa.quantity})
+                                  </span>
+                                ))}
+                                {storeAvail.length > 2 && (
+                                  <span className="text-[8px] px-1 py-0.5 rounded bg-gray-100 text-gray-500">
+                                    +{storeAvail.length - 2}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  });
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Cart Section - Mobile: Fixed bottom, Desktop: Side panel */}
+        <div className="w-full lg:w-80 xl:w-96 flex flex-col bg-gray-50 dark:bg-gray-900 lg:max-h-full max-h-[50vh] lg:max-h-none border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-700">
+          {/* Customer Selection with Add Button */}
+          <div className="p-2 sm:p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 flex-shrink-0" />
+              <Select 
+                value={selectedCustomer?.id || "walkin"} 
+                onValueChange={(v) => setSelectedCustomer(v === "walkin" ? null : customers.find(c => c.id === v) || null)}
+              >
+                <SelectTrigger className="flex-1 border-0 shadow-none p-0 h-auto font-medium text-xs sm:text-sm">
+                  <SelectValue placeholder="Walk-in Customer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="walkin">Walk-in Customer</SelectItem>
+                  {customers.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name} - {c.phone}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button 
+                size="icon" 
+                variant="outline" 
+                className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800 hover:bg-purple-100 flex-shrink-0"
+                onClick={() => setShowQRScanner(true)}
+                data-testid="scan-loyalty-btn"
+                title="Scan Loyalty Card"
+              >
+                <IdCard className="w-3 h-3 sm:w-4 sm:h-4 text-purple-600" />
+              </Button>
+              <Button 
+                size="icon" 
+                variant="outline" 
+                className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800 hover:bg-green-100 flex-shrink-0"
+                onClick={() => setShowAddCustomer(true)}
+                data-testid="add-customer-btn"
+              >
+                <Plus className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Cart Items */}
+          <div className="flex-1 overflow-y-auto p-2 sm:p-4 min-h-0">
+            {cart.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-400 py-4">
+                <ShoppingCart className="w-10 h-10 sm:w-16 sm:h-16 mb-2 sm:mb-4 opacity-30" />
+                <p className="text-sm sm:text-lg font-medium text-gray-500">Cart is empty</p>
+                <p className="text-xs sm:text-sm">Click on items to add</p>
+              </div>
+            ) : (
+              <div className="space-y-2 sm:space-y-3">
+                {cart.map((item) => (
+                  <div key={item.variant_id} className="flex gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-xs sm:text-sm truncate">{item.item_name}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-500 truncate">
+                        {item.size && `${item.size}`}{item.size && item.color && ' / '}{item.color && `${item.color}`}
+                      </p>
+                      <p className="font-semibold text-xs sm:text-sm mt-0.5 sm:mt-1">{formatCurrency(item.rate || 0)}</p>
+                    </div>
+                    <div className="flex items-center gap-0.5 sm:gap-1">
+                      <Button size="sm" variant="outline" className="h-6 w-6 sm:h-8 sm:w-8 p-0" onClick={() => updateQuantity(item.variant_id, -1)}>
+                        <Minus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      </Button>
+                      <span className="w-6 sm:w-8 text-center font-semibold text-xs sm:text-sm">{item.quantity}</span>
+                      <Button size="sm" variant="outline" className="h-6 w-6 sm:h-8 sm:w-8 p-0" onClick={() => updateQuantity(item.variant_id, 1)}>
+                        <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-6 w-6 sm:h-8 sm:w-8 p-0 text-red-500 hover:text-red-600" onClick={() => removeFromCart(item.variant_id)}>
+                        <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Actions - Mobile optimized */}
+          <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+            {/* Totals */}
+            {cart.length > 0 && (
+              <div className="p-4 space-y-2 border-b border-gray-100">
+                {gstInclusive ? (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Total (Incl. GST {selectedGst}%)</span>
+                      <span className="font-medium">{formatCurrency(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-400">
+                      <span>GST Amount (included)</span>
+                      <span>{formatCurrency(gstAmount)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Subtotal</span>
+                      <span className="font-medium">{formatCurrency(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">GST ({selectedGst}%)</span>
+                      <span className="font-medium">{formatCurrency(gstAmount)}</span>
+                    </div>
+                  </>
+                )}
+                {autoAppliedDiscounts.totalAutoDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span className="flex items-center gap-1">
+                      <Tag className="w-3 h-3" />
+                      Auto Discounts
+                    </span>
+                    <span>-{formatCurrency(autoAppliedDiscounts.totalAutoDiscount)}</span>
+                  </div>
+                )}
+                {(totalDiscount - autoAppliedDiscounts.totalAutoDiscount) > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Other Discounts</span>
+                    <span>-{formatCurrency((totalDiscount - autoAppliedDiscounts.totalAutoDiscount))}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-100">
+                  <span>Total</span>
+                  <span>{formatCurrency(totalAmount)}</span>
+                </div>
+                
+                {/* Currency Converter Widget */}
+                <div className="mt-3 pt-3 border-t border-dashed border-gray-200">
+                  <button 
+                    onClick={() => setShowCurrencyConverter(!showCurrencyConverter)}
+                    className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    <Repeat2 className="w-3 h-3" />
+                    Show in other currency
+                  </button>
+                  {showCurrencyConverter && (
+                    <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg space-y-2">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={displayCurrency}
+                          onChange={(e) => setDisplayCurrency(e.target.value)}
+                          className="flex-1 text-xs p-1.5 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800"
+                        >
+                          {Object.entries(CURRENCIES).map(([code, curr]) => (
+                            <option key={code} value={code}>{curr.symbol} {code}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="text-center">
+                        <span className="text-xs text-gray-500">Equivalent:</span>
+                        <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                          {formatCurrency(totalAmount)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Button 
+                  variant="outline" 
+                  className="gap-2 border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700"
+                  onClick={holdCurrentOrder}
+                  disabled={cart.length === 0}
+                  data-testid="hold-btn"
+                >
+                  <Clock className="w-4 h-4" />
+                  Hold
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="gap-2 border-red-200 bg-red-50 hover:bg-red-100 text-red-700"
+                  onClick={clearCart}
+                  disabled={cart.length === 0}
+                  data-testid="clear-btn"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Clear
+                </Button>
+              </div>
+              
+              {/* Quick Checkout Button - F2 shortcut */}
+              <Button 
+                variant="outline"
+                className="w-full h-10 border-amber-300 text-amber-700 hover:bg-amber-50 font-medium mb-2" 
+                disabled={cart.length === 0}
+                onClick={() => setShowQuickCheckout(true)}
+                data-testid="quick-checkout-btn"
+              >
+                <Banknote className="w-4 h-4 mr-2" />
+                Quick Cash (F2)
+              </Button>
+              
+              <Button 
+                className="w-full h-12 bg-red-600 hover:bg-red-700 text-white text-lg font-semibold" 
+                disabled={cart.length === 0}
+                onClick={openCheckout}
+                data-testid="checkout-btn"
+              >
+                <CreditCard className="w-5 h-5 mr-2" />
+                Pay {formatCurrency(totalAmount)}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* HIGH-SPEED BILLING: Quick Checkout Modal */}
+      <Dialog open={showQuickCheckout} onOpenChange={setShowQuickCheckout}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <Banknote className="w-5 h-5" />
+              Quick Cash Checkout
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Order Summary */}
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+              <div className="flex justify-between text-sm mb-2">
+                <span>Items ({cart.reduce((sum, item) => sum + item.quantity, 0)})</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              {totalDiscount > 0 && (
+                <div className="flex justify-between text-sm text-green-600 mb-2">
+                  <span>Discount</span>
+                  <span>-{formatCurrency(totalDiscount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2">
+                <span>Total</span>
+                <span className="text-amber-600">{formatCurrency(totalAmount)}</span>
+              </div>
+            </div>
+            
+            {/* Quick Amount Buttons */}
+            <div>
+              <label className="text-sm font-medium text-gray-600 mb-2 block">Quick Cash Received</label>
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                {[totalAmount, Math.ceil(totalAmount / 100) * 100, Math.ceil(totalAmount / 500) * 500, Math.ceil(totalAmount / 1000) * 1000].filter((v, i, a) => a.indexOf(v) === i).slice(0, 4).map((amount) => (
+                  <Button
+                    key={amount}
+                    variant="outline"
+                    className="h-12 text-lg font-semibold border-amber-200 hover:bg-amber-50 hover:border-amber-400"
+                    onClick={async () => {
+                      setCashReceived(amount);
+                      // Use quickCompleteSale which takes payment directly
+                      await quickCompleteSale(amount);
+                    }}
+                  >
+                    {formatCurrency(amount)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Change Display */}
+            {cashReceived > 0 && cashReceived >= totalAmount && (
+              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 text-center">
+                <p className="text-sm text-green-600 dark:text-green-400">Change to Return</p>
+                <p className="text-3xl font-bold text-green-700 dark:text-green-300">
+                  {formatCurrency((cashReceived - totalAmount))}
+                </p>
+              </div>
+            )}
+            
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                className="flex-1"
+                onClick={() => setShowQuickCheckout(false)}
+              >
+                Cancel (Esc)
+              </Button>
+              <Button 
+                className="flex-1 bg-amber-600 hover:bg-amber-700"
+                onClick={() => {
+                  setShowQuickCheckout(false);
+                  setShowCheckout(true);
+                }}
+              >
+                More Options
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hold Orders Modal */}
+      <Dialog open={showHoldOrders} onOpenChange={setShowHoldOrders}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Hold Orders ({holdOrders.length})
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {holdOrders.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No hold orders</p>
+            ) : (
+              holdOrders.map((order) => (
+                <div key={order.id} className="p-4 border border-gray-200 rounded-lg">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-medium">{order.customer?.name || 'Walk-in Customer'}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(order.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                    <p className="font-bold">
+                      {formatCurrency(order.cart.reduce((sum, c) => sum + (c.rate * c.quantity), 0))}
+                    </p>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">
+                    {order.cart.length} item(s): {order.cart.map(c => c.item_name).join(', ')}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => restoreHoldOrder(order)}>
+                      Restore
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-red-600 border-red-200" onClick={() => deleteHoldOrder(order.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Customer Modal */}
+      <Dialog open={showAddCustomer} onOpenChange={setShowAddCustomer}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="w-5 h-5" />
+              Add New Customer
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Name *</Label>
+              <Input 
+                value={newCustomer.name}
+                onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                placeholder="Customer name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone *</Label>
+              <Input 
+                value={newCustomer.phone}
+                onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                placeholder="Phone number"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input 
+                type="email"
+                value={newCustomer.email}
+                onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                placeholder="Email address"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Customer Type *</Label>
+              <Select 
+                value={newCustomer.customer_type} 
+                onValueChange={(v) => setNewCustomer({ ...newCustomer, customer_type: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="retail">Retail</SelectItem>
+                  <SelectItem value="wholesale">Wholesale</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>GST Number</Label>
+              <Input 
+                value={newCustomer.gst_number}
+                onChange={(e) => setNewCustomer({ ...newCustomer, gst_number: e.target.value })}
+                placeholder="GSTIN"
+              />
+            </div>
+            <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleAddCustomer}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Customer
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Checkout Modal with Voucher, Loyalty, Discount & Part Payments */}
+      <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Complete Sale</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            
+            {/* Section 1: Voucher Code */}
+            <div className="p-3 bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-800 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Gift className="w-4 h-4 text-pink-600" />
+                <Label className="text-pink-700 dark:text-pink-400 font-medium">Voucher Code</Label>
+              </div>
+              {voucherApplied ? (
+                <div className="flex items-center justify-between bg-green-100 dark:bg-green-900/30 p-2 rounded">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-green-600" />
+                    <span className="text-green-700 dark:text-green-400 font-medium">{voucherCode}</span>
+                    <span className="text-green-600">(-{formatCurrency(voucherDiscount)})</span>
+                  </div>
+                  <Button size="sm" variant="ghost" className="text-red-500 h-7" onClick={removeVoucher}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input 
+                    value={voucherCode} 
+                    onChange={(e) => setVoucherCode(e.target.value.toUpperCase())} 
+                    placeholder="Enter voucher code"
+                    className="flex-1"
+                  />
+                  <Button onClick={applyVoucher} className="bg-pink-600 hover:bg-pink-700">
+                    Apply
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Section 2: Loyalty Points */}
+            {selectedCustomer && customerLoyaltyPoints > 0 && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Star className="w-4 h-4 text-amber-600" />
+                  <Label className="text-amber-700 dark:text-amber-400 font-medium">Loyalty Points</Label>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Available: <strong>{customerLoyaltyPoints}</strong> points (Max redeemable: {maxLoyaltyPointsRedeemable})
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Input 
+                    type="number"
+                    value={useLoyaltyPoints || ''}
+                    onChange={(e) => applyLoyaltyPoints(parseInt(e.target.value) || 0)}
+                    placeholder="Points to redeem"
+                    max={maxLoyaltyPointsRedeemable}
+                    className="flex-1"
+                  />
+                  <Button 
+                    variant="outline"
+                    onClick={() => applyLoyaltyPoints(maxLoyaltyPointsRedeemable)}
+                    className="border-amber-300 text-amber-700"
+                  >
+                    Use Max
+                  </Button>
+                </div>
+                {useLoyaltyPoints > 0 && (
+                  <p className="text-sm text-green-600 mt-2">
+                    ✓ {useLoyaltyPoints} points = {formatCurrency(loyaltyPointsValue)} discount
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Section 3: Manual Discount */}
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Percent className="w-4 h-4 text-blue-600" />
+                <Label className="text-blue-700 dark:text-blue-400 font-medium">Discount</Label>
+              </div>
+              <div className="flex gap-2">
+                <Select value={discountType} onValueChange={setDiscountType}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="amount">{CURRENCIES[displayCurrency]?.symbol || '₹'}</SelectItem>
+                    <SelectItem value="percent">%</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input 
+                  type="number"
+                  value={manualDiscount || ''}
+                  onChange={(e) => setManualDiscount(parseFloat(e.target.value) || 0)}
+                  placeholder={discountType === 'percent' ? 'Enter %' : 'Enter amount'}
+                  className="flex-1"
+                />
+              </div>
+              {calculatedManualDiscount > 0 && (
+                <p className="text-sm text-green-600 mt-2">
+                  ✓ Discount: {formatCurrency(calculatedManualDiscount)}
+                </p>
+              )}
+            </div>
+
+            {/* Section 4: Payment Methods - Part Payment */}
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-green-600" />
+                  <Label className="text-green-700 dark:text-green-400 font-medium">Payment Methods</Label>
+                </div>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="gap-1 text-green-600 border-green-300 h-7"
+                  onClick={addPaymentMethod}
+                >
+                  <Plus className="w-3 h-3" />
+                  Add
+                </Button>
+              </div>
+              
+              <div className="space-y-2">
+                {payments.map((payment, index) => (
+                  <div key={index} className="flex gap-2 items-center p-2 bg-white dark:bg-gray-800 rounded-lg border">
+                    <Select value={payment.method} onValueChange={(v) => updatePayment(index, 'method', v)}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYMENT_METHODS.map((method) => (
+                          <SelectItem key={method.id} value={method.id}>
+                            <div className="flex items-center gap-2">
+                              <method.icon className="w-4 h-4" />
+                              {method.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input 
+                      type="number"
+                      className="flex-1"
+                      value={payment.amount || ''}
+                      onChange={(e) => updatePayment(index, 'amount', e.target.value)}
+                      placeholder="Amount"
+                    />
+                    {payments.length > 1 && (
+                      <Button size="icon" variant="ghost" className="text-red-500 h-8 w-8" onClick={() => removePayment(index)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Payment Status */}
+              <div className="mt-3 p-2 bg-white dark:bg-gray-800 rounded-lg border">
+                <div className="flex justify-between text-sm">
+                  <span>Total Paid</span>
+                  <span className={`font-bold ${totalPaid >= totalAmount ? 'text-green-600' : 'text-amber-600'}`}>
+                    {formatCurrency(totalPaid)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Remaining</span>
+                  <span className={`font-bold ${totalAmount - totalPaid <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(Math.max(0, totalAmount - totalPaid))}
+                  </span>
+                </div>
+                {totalPaid > totalAmount && (
+                  <div className="flex justify-between text-sm text-blue-600">
+                    <span>Change</span>
+                    <span className="font-bold">{formatCurrency((totalPaid - totalAmount))}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bill Summary */}
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 space-y-2">
+              <h4 className="font-semibold text-sm mb-2">Bill Summary</h4>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Subtotal</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              {!gstInclusive && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">GST ({selectedGst}%)</span>
+                  <span>{formatCurrency(gstAmount)}</span>
+                </div>
+              )}
+              {gstInclusive && (
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>GST (included)</span>
+                  <span>{formatCurrency(gstAmount)}</span>
+                </div>
+              )}
+              {/* Auto-Applied Discounts from Discount Manager */}
+              {autoAppliedDiscounts.totalAutoDiscount > 0 && (
+                <div className="border-t border-dashed border-gray-300 dark:border-gray-600 pt-2 mt-2">
+                  <div className="flex justify-between text-sm text-green-600 font-medium">
+                    <span className="flex items-center gap-1">
+                      <Tag className="w-3 h-3" />
+                      Auto Discounts
+                    </span>
+                    <span>-{formatCurrency(autoAppliedDiscounts.totalAutoDiscount)}</span>
+                  </div>
+                  {autoAppliedDiscounts.itemDiscounts.map((d, idx) => (
+                    <div key={idx} className="flex justify-between text-xs text-green-500 pl-4">
+                      <span>{d.discount_name || 'Item Discount'}</span>
+                      <span>-{formatCurrency(d.discount || 0)}</span>
+                    </div>
+                  ))}
+                  {autoAppliedDiscounts.bogoDiscounts.map((d, idx) => (
+                    <div key={idx} className="flex justify-between text-xs text-green-500 pl-4">
+                      <span>{d.offer_name || 'BOGO Offer'}</span>
+                      <span>-{formatCurrency(d.discount_amount || 0)}</span>
+                    </div>
+                  ))}
+                  {autoAppliedDiscounts.tieredDiscount && (
+                    <div className="flex justify-between text-xs text-green-500 pl-4">
+                      <span>{autoAppliedDiscounts.tieredDiscount.discount_name || 'Tiered Discount'}</span>
+                      <span>-{formatCurrency(autoAppliedDiscounts.tieredDiscount.discount_amount || 0)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {voucherDiscount > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Voucher Discount</span>
+                  <span>-{formatCurrency(voucherDiscount)}</span>
+                </div>
+              )}
+              {calculatedManualDiscount > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Manual Discount</span>
+                  <span>-{formatCurrency(calculatedManualDiscount)}</span>
+                </div>
+              )}
+              {loyaltyPointsValue > 0 && (
+                <div className="flex justify-between text-sm text-amber-600">
+                  <span>Loyalty Points ({useLoyaltyPoints})</span>
+                  <span>-{formatCurrency(loyaltyPointsValue)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-xl font-bold pt-2 border-t border-gray-300 dark:border-gray-600">
+                <span>Total</span>
+                <span>{formatCurrency(totalAmount)}</span>
+              </div>
+            </div>
+
+            <Button 
+              className="w-full h-12 bg-green-600 hover:bg-green-700 text-lg font-semibold" 
+              onClick={completeSale} 
+              disabled={totalPaid < totalAmount}
+              data-testid="complete-sale-btn"
+            >
+              <Check className="w-5 h-5 mr-2" />
+              Complete Sale
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receipt Modal - After Payment */}
+      <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <Check className="w-5 h-5" />
+              Sale Completed!
+            </DialogTitle>
+          </DialogHeader>
+          
+          {lastSale && (
+            <div className="space-y-4">
+              {/* Receipt Preview */}
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-900" id="receipt">
+                <div className="text-center mb-4">
+                  <h3 className="font-bold text-lg">{invoiceSettings?.company_name || lastSale.store_name || 'Your Store'}</h3>
+                  <p className="text-xs text-gray-500">{lastSale.store_name}</p>
+                </div>
+                
+                <div className="text-sm space-y-1 mb-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Invoice:</span>
+                    <span className="font-mono">{lastSale.invoice_number}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Date:</span>
+                    <span>{new Date(lastSale.created_at).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Customer:</span>
+                    <span>{lastSale.customer_name || 'Walk-in'}</span>
+                  </div>
+                </div>
+
+                <div className="border-t border-dashed py-2">
+                  {lastSale.items?.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm py-1">
+                      <span>{item.item_name} x{item.quantity}</span>
+                      <span>{formatCurrency((item.rate * item.quantity))}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-dashed pt-2 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span>Subtotal</span>
+                    <span>{formatCurrency(lastSale.subtotal || 0)}</span>
+                  </div>
+                  {lastSale.voucher_discount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Voucher</span>
+                      <span>-{formatCurrency(lastSale.voucher_discount)}</span>
+                    </div>
+                  )}
+                  {lastSale.discount_amount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount</span>
+                      <span>-{formatCurrency(lastSale.discount_amount || 0)}</span>
+                    </div>
+                  )}
+                  {lastSale.loyalty_points_value > 0 && (
+                    <div className="flex justify-between text-amber-600">
+                      <span>Loyalty Points</span>
+                      <span>-{formatCurrency(lastSale.loyalty_points_value)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-lg pt-1 border-t">
+                    <span>Total</span>
+                    <span>{formatCurrency(lastSale.total_amount || 0)}</span>
+                  </div>
+                </div>
+
+                <div className="text-center mt-4 text-xs text-gray-500">
+                  Thank you for shopping!
+                </div>
+              </div>
+
+              {/* Action Buttons - Print/PDF/WhatsApp/Thermal */}
+              <div className="grid grid-cols-4 gap-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-col h-16 gap-1 border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700"
+                  onClick={handlePrint}
+                >
+                  <Printer className="w-5 h-5" />
+                  <span className="text-xs">Print</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="flex-col h-16 gap-1 border-red-200 bg-red-50 hover:bg-red-100 text-red-700"
+                  onClick={handleDownloadPDF}
+                >
+                  <Download className="w-5 h-5" />
+                  <span className="text-xs">PDF</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="flex-col h-16 gap-1 border-green-200 bg-green-50 hover:bg-green-100 text-green-700"
+                  onClick={handleWhatsApp}
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  <span className="text-xs">WhatsApp</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="flex-col h-16 gap-1 border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700"
+                  onClick={() => setShowThermalPrinter(true)}
+                >
+                  <Receipt className="w-5 h-5" />
+                  <span className="text-xs">Thermal</span>
+                </Button>
+              </div>
+
+              <Button 
+                className="w-full" 
+                variant="outline"
+                onClick={() => setShowReceipt(false)}
+              >
+                Close & Continue
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Thermal Printer Dialog */}
+      <ThermalPrinter
+        isOpen={showThermalPrinter}
+        onClose={() => setShowThermalPrinter(false)}
+        receiptData={lastSale ? {
+          storeName: lastSale.store_name || 'BIJNISBOOKS',
+          storeAddress: '',
+          storePhone: '',
+          invoiceNumber: lastSale.invoice_number,
+          date: new Date(lastSale.created_at).toLocaleString(),
+          customerName: lastSale.customer_name,
+          customerPhone: lastSale.customer_phone,
+          items: lastSale.items?.map(i => ({
+            name: i.item_name,
+            quantity: i.quantity,
+            price: i.rate
+          })) || [],
+          subtotal: lastSale.subtotal || 0,
+          discount: (lastSale.voucher_discount || 0) + (lastSale.discount_amount || 0) + (lastSale.loyalty_points_value || 0),
+          gstAmount: lastSale.gst_amount || 0,
+          total: lastSale.total_amount || 0,
+          paymentMethod: lastSale.payment_method || 'Cash',
+          gstNumber: lastSale.gst_number || ''
+        } : null}
+        onPrintSuccess={() => {
+          setShowThermalPrinter(false);
+          toast.success('Receipt printed to thermal printer');
+        }}
+      />
+
+      {/* Camera Barcode Scanner Modal */}
+      <BarcodeCameraScanner
+        isOpen={showBarcodeScanner}
+        onClose={() => setShowBarcodeScanner(false)}
+        onScan={(barcode) => {
+          handleBarcodeScan(barcode);
+        }}
+      />
+
+      {/* QR Scanner for Loyalty Cards */}
+      <QRScannerDialog
+        open={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        mode="loyalty"
+        onCustomerScanned={(customer) => {
+          setSelectedCustomer(customer);
+          toast.success(`Customer ${customer.name} selected`);
+        }}
+      />
+    </div>
+  );
+}

@@ -1,0 +1,53 @@
+{
+  "name": "BijnisBooks - Retail Management",
+  "short_name": "BijnisBooks",
+  "description": "Complete retail management system with POS, inventory, accounting, and HR features",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#3b82f6",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "shopping"],
+  "shortcuts": [
+    {
+      "name": "New Sale",
+      "short_name": "POS",
+      "description": "Open Point of Sale",
+      "url": "/?page=pos",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Inventory",
+      "short_name": "Items",
+      "description": "View Inventory",
+      "url": "/?page=items",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Sales History",
+      "short_name": "Sales",
+      "description": "View Sales History",
+      "url": "/?page=sales",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "lang": "en",
+  "dir": "ltr"
+}

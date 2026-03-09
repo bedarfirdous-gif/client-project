@@ -1,0 +1,625 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../App';
+import { toast } from 'sonner';
+import { toPng } from 'html-to-image';
+import { QRCodeSVG } from 'qrcode.react';
+import Barcode from 'react-barcode';
+import {
+  IdCard, Download, Printer, User, Phone, Share2, X,
+  Loader2, FileText, MapPin, Building2
+} from 'lucide-react';
+import { Button } from './ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+
+export default function EmployeeIDCard({ employeeId, onClose }) {
+  const { api } = useAuth();
+  const cardRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const [timeout, setTimeout] = useState(false);
+
+  // Avoid initializing with `null` to prevent a flash where UI renders "no data" and then re-renders with data.
+  // Use an explicit loaded flag to control first paint.
+  const [cardData, setCardData] = useState({});
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  const [downloading, setDownloading] = useState(false);
+  const [downloadingA4, setDownloadingA4] = useState(false);
+
+  // Track card actions for history
+  const trackCardAction = async (action) => {
+    try {
+      await api(`/api/card-history?card_type=employee_id&card_id=${employeeId}&action=${action}`, {
+        method: 'POST'
+      });
+    } catch (err) {
+      console.error('Failed to track card action:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (employeeId) {
+      fetchIDCard();
+      trackCardAction('view');
+    }
+  }, [employeeId]);
+
+  const fetchIDCard = async () => {
+    setLoading(true);
+    try {
+      const data = await api(`/api/employees/${employeeId}/id-card`);
+      setCardData(data);
+    } catch (err) {
+      toast.error('Failed to load ID card');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!cardRef.current || !cardData || !cardData.card_data) return;
+    setDownloading(true);
+    trackCardAction('download');
+    
+    try {
+      // Wait a bit for all SVG elements and images to render
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const dataUrl = await toPng(cardRef.current, {
+        quality: 0.95,
+        pixelRatio: 3,
+        backgroundColor: null
+      });
+      
+      const link = document.createElement('a');
+      const employeeName = cardData?.card_data?.name || 'Employee';
+      link.download = `ID_Card_${employeeName.replace(/\s+/g, '_')}.png`;
+      link.href = dataUrl;
+      link.click();
+      toast.success('ID Card downloaded!');
+    } catch (err) {
+      toast.error('Failed to download card');
+      console.error(err);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleDownloadA4 = async () => {
+    if (!cardRef.current || !cardData || !cardData.card_data) return;
+    setDownloadingA4(true);
+    trackCardAction('download_a4');
+    
+    try {
+      // Wait for SVG elements and images to render
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Get card as data URL using html-to-image
+      const cardDataUrl = await toPng(cardRef.current, {
+        quality: 0.95,
+        pixelRatio: 3,
+        backgroundColor: null
+      });
+      
+      // Load the card image
+      const cardImg = new Image();
+      await new Promise((resolve, reject) => {
+        cardImg.onload = resolve;
+        cardImg.onerror = reject;
+        cardImg.src = cardDataUrl;
+      });
+      
+      // Create A4 canvas (at 96 DPI, A4 is approximately 794x1123 pixels)
+      const a4Canvas = document.createElement('canvas');
+      a4Canvas.width = 794;
+      a4Canvas.height = 1123;
+      const ctx = a4Canvas.getContext('2d');
+      
+      // White background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, a4Canvas.width, a4Canvas.height);
+      
+      // Calculate card position to center it
+      const scale = Math.min(700 / cardImg.width, 500 / cardImg.height);
+      const scaledWidth = cardImg.width * scale;
+      const scaledHeight = cardImg.height * scale;
+      const x = (a4Canvas.width - scaledWidth) / 2;
+      const y = 100; // Top margin
+      
+      // Draw card
+      ctx.drawImage(cardImg, x, y, scaledWidth, scaledHeight);
+      
+      // Add title
+      ctx.font = 'bold 24px Arial';
+      ctx.fillStyle = '#333333';
+      ctx.textAlign = 'center';
+      ctx.fillText('EMPLOYEE IDENTITY CARD', a4Canvas.width / 2, 60);
+      
+      const link = document.createElement('a');
+      const employeeName = cardData?.card_data?.name || 'Employee';
+      link.download = `ID_Card_A4_${employeeName.replace(/\s+/g, '_')}.png`;
+      link.href = a4Canvas.toDataURL('image/png');
+      link.click();
+      toast.success('A4 ID Card downloaded!');
+    } catch (err) {
+      toast.error('Failed to download A4 card');
+      console.error(err);
+    } finally {
+      setDownloadingA4(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!cardRef.current || !cardData || !cardData.card_data) return;
+    trackCardAction('share');
+    
+    try {
+      const dataUrl = await toPng(cardRef.current, {
+        quality: 0.9,
+        pixelRatio: 2,
+        backgroundColor: null
+      });
+      
+      // Convert data URL to blob
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      
+      const employeeName = cardData?.card_data?.name || 'Employee';
+      if (navigator.share && navigator.canShare) {
+        try {
+          const file = new File([blob], `ID_Card_${employeeName}.png`, { type: 'image/png' });
+          await navigator.share({
+            title: `Employee ID Card - ${employeeName}`,
+            text: `Employee ID Card for ${employeeName}`,
+            files: [file]
+          });
+          toast.success('Shared successfully!');
+        } catch (shareErr) {
+          if (shareErr.name !== 'AbortError') {
+            copyToClipboard(blob);
+          }
+        }
+      } else {
+        copyToClipboard(blob);
+      }
+    } catch (err) {
+      toast.error('Failed to share card');
+      console.error(err);
+    }
+  };
+
+  const copyToClipboard = async (blob) => {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      toast.success('Card copied to clipboard!');
+    } catch {
+      toast.error('Could not copy to clipboard');
+    }
+  };
+
+  const handlePrint = () => {
+    if (!cardData || !cardData.card_data) return;
+    trackCardAction('print');
+
+    const printWindow = window.open('', '', 'width=500,height=700');
+    const joiningDate = cardData.card_data?.date_of_joining 
+      ? new Date(cardData.card_data.date_of_joining).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+      : 'N/A';
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Employee ID - ${cardData.card_data?.name || 'Employee'}</title>
+          <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; padding: 20px; display: flex; justify-content: center; }
+            .card { 
+              width: 400px; 
+              background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%);
+              border-radius: 20px; 
+              padding: 24px;
+              color: white;
+              position: relative;
+              box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+            .company-info h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+            /* Smooth opacity changes to avoid blink/flicker during print window render */
+            .company-info p { font-size: 12px; opacity: 0.9; transition: opacity 150ms ease-in-out; }
+            .badge { 
+              background: rgba(255,255,255,0.25); 
+              padding: 6px 14px; 
+              border-radius: 20px; 
+              font-size: 12px; 
+              font-weight: 600;
+              display: flex;
+              align-items: center;
+              gap: 6px;
+            }
+            .employee-info { margin-bottom: 20px; }
+            .employee-info h2 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+            /* Smooth opacity changes to avoid blink/flicker during print window render */
+            .employee-info .emp-id { font-size: 14px; opacity: 0.9; transition: opacity 150ms ease-in-out; }
+            .details-row { display: flex; justify-content: space-between; align-items: flex-end; }
+            .left-details { }
+            .designation { font-size: 28px; font-weight: 700; }
+            /* Smooth opacity changes to avoid blink/flicker during print window render */
+            .designation-label { font-size: 12px; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; transition: opacity 150ms ease-in-out; }
+            .center-details { text-align: center; }
+            .center-details p { font-size: 12px; margin: 4px 0; }
+            .center-details span { font-weight: 600; }
+            .right-details { text-align: right; }
+            .qr-code { 
+              background: white; 
+              padding: 8px; 
+              border-radius: 8px; 
+              display: inline-block;
+            }
+            /* QR code image styling for smooth fade-in */
+
+/* BEFORE: Abrupt visibility change */
+/* .element { opacity: 0; } */
+/* .element.visible { opacity: 1; } */
+
+/* AFTER: Smooth transition */
+.element {
+  opacity: 0;
+  transition: opacity 150ms ease-in-out;
+}
+.element.visible {
+  opacity: 1;
+}
+
+/* For content that needs to be hidden but not cause reflow */
+.fade-container {
+  min-height: 100px; /* Prevent layout shift */
+}
+, toggle a class instead of abrupt changes */
+            .qr-code img.visible {
+              opacity: 1;
+              /* Restore interaction when visible (prevents click/hover glitches during fade) */
+              pointer-events: auto;
+            }
+
+            /* When the QR image is ready/should be shown
+            /* Keep transitions on the state rules as well to avoid any abrupt opacity flips
+               if these rules override the base transition in some browsers/CSS ordering. */
+            .qr-code img.ready {
+              opacity: 1;
+              transition: opacity 150ms ease-in-out;
+            }
+
+            /* When explicitly hidden (ensure fade-out also transitions smoothly) */
+            .qr-code img.hidden {
+              opacity: 0;
+              transition: opacity 150ms ease-in-out;
+            }
+
+            /* When the QR image is ready/should be shown, toggle this class to fade in smoothly */
+            .qr-code img.visible {
+              opacity: 1;
+              /* Re-enable interactions only when visible to avoid click/hover flicker */
+              pointer-events: auto;
+            }1;
+              pointer-events: auto;
+            }
+            /*
+             * Keep transition declared on the toggled state as well.
+             * Some browsers can briefly skip/override the base rule during class toggles,
+             * causing a perceptible opacity snap (blink).
+             */
+            .qr-code img.is-visible { opacity: 1; transition: opacity 150ms ease-in-out; }
+
+            /* Contact info styling */
+            /* Ensure opacity changes are always animated (prevents abrupt text dimming/brightening). */
+            .contact-info { margin-top: 8px; font-size: 11px; opacity: 0.9; transition: opacity 150ms ease-in-out; }
+            .barcode-section { 
+              margin-top: 16px; 
+              padding-top: 12px; 
+              border-top: 1px solid rgba(255,255,255,0.2);
+            }
+            .barcode-container {
+              background: white;
+              border-radius: 8px;
+              padding: 8px;
+              display: inline-block;
+              width: 100%;
+            }
+            .barcode-container img {
+              width: 100%;
+              height: auto;
+              max-height: 48px;
+              object-fit: contain;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="header">
+              <div class="company-info">
+                <h1>${cardData.business?.name || 'Company'}</h1>
+                <p>${cardData.card_data?.store_name || 'Main Office'}</p>
+                <p>EMPLOYEE ID CARD</p>
+              </div>
+              <div class="badge">
+                <span>👤</span>
+                ${cardData.card_data?.designation?.toUpperCase() || 'EMPLOYEE'}
+              </div>
+            </div>
+            
+            <div class="employee-info">
+              <h2>${cardData.card_data?.name || 'Employee'}</h2>
+              <p class="emp-id">ID: ${cardData.card_data?.employee_code || 'N/A'}</p>
+            </div>
+            
+            <div class="details-row">
+              <div class="left-details">
+                <p class="designation-label">Department</p>
+                <p class="designation">${cardData.card_data?.department || 'General'}</p>
+              </div>
+              
+              <div class="center-details">
+                <p>VALID FROM: <span>${joiningDate}</span></p>
+                <p>VALID TILL: <span>Active</span></p>
+              </div>
+              
+              <div class="right-details">
+                <div class="qr-code">
+                  <img loading="lazy" src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(cardData.card_data?.qr_code_data || '')}" width="80" height="80" />
+                </div>
+                <div class="contact-info">
+                  ${cardData.card_data?.phone ? `<p>Ph: ${cardData.card_data.phone}</p>` : ''}
+                </div>
+              </div>
+            </div>
+            
+            ${cardData.card_data?.barcode_image ? `
+              <div class="barcode-section">
+                <div class="barcode-container">
+                  <img loading="lazy" src="${cardData.card_data.barcode_image}" alt="Barcode: ${cardData.card_data.employee_code}" />
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+  };
+
+  const joiningDate = cardData?.card_data?.date_of_joining 
+    ? new Date(cardData.card_data.date_of_joining).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+    : 'N/A';
+
+  return (
+    <Dialog open={!!employeeId} onOpenChange={() => onClose?.()}>
+      <DialogContent className="max-w-lg p-0 overflow-hidden border-0 bg-gray-50">
+        {/* Header */}
+        <DialogHeader className="p-4 pb-2 bg-white border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <IdCard className="w-5 h-5 text-gray-600" />
+              <DialogTitle className="text-lg font-semibold">Employee ID Card Preview</DialogTitle>
+            </div>
+            <button 
+              onClick={() => onClose?.()} 
+              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
+          <DialogDescription className="text-sm text-gray-500 mt-1">
+            Preview and download the ID card for {cardData?.card_data?.name || 'employee'}
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-20 bg-gray-50">
+            <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+          </div>
+        ) : cardData ? (
+          <div className="p-4 space-y-4">
+            {/* The Card */}
+            <div 
+              ref={cardRef} 
+              className="mx-auto rounded-2xl overflow-hidden shadow-xl"
+              style={{ 
+                background: 'linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%)',
+                maxWidth: '400px'
+              }}
+            >
+              <div className="p-5 text-white">
+                {/* Header Row */}
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold leading-tight">
+                      {cardData.business?.name || 'Company'}
+                    </h2>
+                    <p className="text-sm opacity-90">
+                      {cardData.card_data?.store_name || 'Main Office'}
+                    </p>
+                    <p className="text-xs opacity-80 uppercase tracking-wider">
+                      Employee ID Card
+                    </p>
+                  </div>
+                  <div className="bg-white/25 px-3 py-1.5 rounded-full flex items-center gap-1.5 text-sm font-semibold">
+                    <User className="w-3.5 h-3.5" />
+                    {cardData.card_data?.designation?.toUpperCase() || 'EMPLOYEE'}
+                  </div>
+                </div>
+
+                {/* Employee Name & ID */}
+                <div className="mb-5">
+                  <h3 className="text-2xl font-bold leading-tight">
+                    {cardData.card_data?.name || 'Employee'}
+                  </h3>
+                  <p className="text-sm opacity-90">
+                    ID: {cardData.card_data?.employee_code || 'N/A'}
+                  </p>
+                </div>
+
+                {/* Bottom Details Row */}
+                <div className="flex justify-between items-end">
+                  {/* Left - Department */}
+                  <div>
+                    <p className="text-3xl font-bold leading-none">
+                      {cardData.card_data?.department || 'General'}
+                    </p>
+                    <p className="text-xs opacity-80 uppercase tracking-wider mt-1">
+                      Department
+                    </p>
+                  </div>
+
+                  {/* Center - Validity */}
+                  <div className="text-center text-sm">
+                    <p>VALID FROM: <span className="font-semibold">{joiningDate}</span></p>
+                    <p>VALID TILL: <span className="font-semibold">Active</span></p>
+                  </div>
+
+                  {/* Right - QR Code */}
+                  <div className="text-right">
+                    <div className="bg-white p-2 rounded-lg inline-block shadow-md">
+                      {cardData.card_data?.qr_code_data ? (
+                        <QRCodeSVG 
+                          value={cardData.card_data.qr_code_data}
+                          size={70}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      ) : cardData.card_data?.employee_code ? (
+                        <QRCodeSVG 
+                          value={`EMPLOYEE:${cardData.card_data.employee_id || ''}:${cardData.card_data.employee_code}`}
+                          size={70}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      ) : (
+                        <div className="w-[70px] h-[70px] flex items-center justify-center text-xs text-gray-400">
+                          No QR
+                        </div>
+                      )}
+                    </div>
+                    {cardData.card_data?.phone && (
+                      <p className="text-xs mt-1.5 opacity-90">
+                        Ph: {cardData.card_data.phone}
+                      </p>
+                    )}
+                    {cardData.card_data?.store_name && (
+                      <p className="text-xs opacity-80 max-w-[120px] text-right">
+                        {cardData.card_data.store_name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Barcode Section - with fallback to react-barcode */}
+                {(cardData.card_data?.barcode_image || cardData.card_data?.employee_code) && (
+                  <div className="mt-4 pt-3 border-t border-white/20">
+                    <div className="bg-white rounded-lg p-2 inline-block w-full text-center">
+                      {cardData.card_data?.barcode_image ? (
+                        <img loading="lazy" 
+                          src={cardData.card_data.barcode_image} 
+                          alt={`Barcode: ${cardData.card_data.employee_code}`}
+                          className="w-full h-auto max-h-12 object-contain"
+                          crossOrigin="anonymous"
+                          onError={(e) => {
+                            // If image fails to load, hide it and let fallback show
+                            e.target.style.display = 'none';
+                            e.target.nextSibling && (e.target.nextSibling.style.display = 'block');
+                          }}
+                        />
+                      ) : null}
+                      {/* Fallback barcode using react-barcode */}
+                      {cardData.card_data?.employee_code && !cardData.card_data?.barcode_image && (
+                        <Barcode 
+                          value={cardData.card_data.employee_code}
+                          width={1.5}
+                          height={40}
+                          fontSize={12}
+                          margin={0}
+                          displayValue={true}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Scan Info */}
+            <p className="text-center text-sm text-gray-500">
+              Scan QR code or barcode for attendance check-in and check-out
+            </p>
+
+            {/* Action Buttons - 2x2 Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <Button 
+                variant="outline" 
+                className="h-12 bg-white hover:bg-gray-50 border-gray-200"
+                onClick={handleDownload}
+                disabled={downloading}
+                data-testid="download-card-btn"
+              >
+                {downloading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                Download Card
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className="h-12 bg-white hover:bg-gray-50 border-gray-200"
+                onClick={handlePrint}
+                data-testid="print-card-btn"
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                Print
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className="h-12 bg-white hover:bg-gray-50 border-gray-200"
+                onClick={handleDownloadA4}
+                disabled={downloadingA4}
+                data-testid="download-a4-btn"
+              >
+                {downloadingA4 ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 mr-2" />
+                )}
+                Download A4
+              </Button>
+              
+              <Button 
+                className="h-12 bg-pink-500 hover:bg-pink-600 text-white"
+                onClick={handleShare}
+                data-testid="share-card-btn"
+              >
+                <Share2 className="w-4 h-4 mr-2" />
+                Share
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 text-center text-gray-500 bg-gray-50">
+            <IdCard className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p>Failed to load ID card data</p>
+            <Button variant="outline" className="mt-4" onClick={() => onClose?.()}>
+              Close
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

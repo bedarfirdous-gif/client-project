@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="16" time="259.392" timestamp="2026-02-11T16:37:35.514892+00:00" hostname="agent-env-1c28fef2-1408-45b7-94c9-fca88306dbe1"><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkFixAgentAuth" name="test_dashboard_without_auth_fails" time="1.549" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkFixAgentAuth" name="test_scan_without_auth_fails" time="0.310" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkDashboard" name="test_dashboard_returns_stats" time="0.325" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkScan" name="test_scan_finds_issues" time="0.639" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkScan" name="test_scan_with_target_path" time="0.578" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkIssues" name="test_get_all_issues" time="0.312" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkIssues" name="test_get_issues_by_status" time="0.309" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkFixes" name="test_get_fixes" time="0.308" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkFixes" name="test_generate_fix_for_issue" time="5.596" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkFixes" name="test_generate_fix_for_nonexistent_issue" time="0.338" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkApplyAndRollback" name="test_apply_fix_nonexistent" time="0.307" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkApplyAndRollback" name="test_rollback_fix_nonexistent" time="0.313" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkApplyAndRollback" name="test_apply_generated_fix" time="0.348" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkAutoFix" name="test_auto_fix_dry_run" time="120.567"><failure message="requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='blink-detection-1.preview.emergentagent.com', port=443): Read timed out. (read timeout=120)">/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:534: in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:571: in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:1395: in getresponse
+    response.begin()
+/usr/local/lib/python3.11/http/client.py:325: in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:286: in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/socket.py:718: in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/ssl.py:1314: in recv_into
+    return self.read(nbytes, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/ssl.py:1166: in read
+    return self._sslobj.read(len, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:644: in send
+    resp = conn.urlopen(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:841: in urlopen
+    retries = retries.increment(
+/root/.venv/lib/python3.11/site-packages/urllib3/util/retry.py:490: in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/util/util.py:39: in reraise
+    raise value
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:787: in urlopen
+    response = self._make_request(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:536: in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:367: in _raise_timeout
+    raise ReadTimeoutError(
+E   urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='blink-detection-1.preview.emergentagent.com', port=443): Read timed out. (read timeout=120)
+
+During handling of the above exception, another exception occurred:
+tests/test_ui_blink_fix_agent.py:332: in test_auto_fix_dry_run
+    response = requests.post(
+/root/.venv/lib/python3.11/site-packages/requests/api.py:115: in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:703: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:690: in send
+    raise ReadTimeout(e, request=request)
+E   requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='blink-detection-1.preview.emergentagent.com', port=443): Read timed out. (read timeout=120)</failure></testcase><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkReportIssue" name="test_report_blink_issue" time="25.652" /><testcase classname="tests.test_ui_blink_fix_agent.TestUIBlinkIntegration" name="test_full_workflow" time="101.723" /></testsuite></testsuites>

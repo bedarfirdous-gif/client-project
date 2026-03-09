@@ -1,0 +1,144 @@
+{
+  "summary": "Centralized Discount Management System testing completed successfully. All backend API tests passed (17/17). Frontend UI verified with Centralized Discount Settings section present in all modals (Item, BOGO, Tiered) with toggles for Global Discount, Auto-Apply, Allow Branch Override, and Apply On Channels (POS, Online Orders, Manual Invoice). Channel badges display correctly in the discount table.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Discount Modal",
+        "issues": ["Minor: DialogContent missing aria-describedby (accessibility warning, non-blocking)"]
+      }
+    ]
+  },
+
+  "features_tested": [
+    {
+      "feature": "Item Discount creation with centralized settings",
+      "status": "WORKING",
+      "details": [
+        "POST /api/item-discounts correctly saves is_global, auto_apply, allow_branch_override, applicable_store_ids, excluded_store_ids, apply_on fields",
+        "GET /api/item-discounts returns discounts with centralized fields"
+      ]
+    },
+    {
+      "feature": "Item Discount calculation with store and channel filtering",
+      "status": "WORKING",
+      "details": [
+        "GET /api/item-discounts/calculate accepts store_id and apply_on parameters",
+        "Discounts are filtered based on channel (pos/online/invoice) and store exclusions"
+      ]
+    },
+    {
+      "feature": "BOGO Offer creation with centralized settings",
+      "status": "WORKING",
+      "details": [
+        "POST /api/bogo-offers correctly saves centralized fields",
+        "GET /api/bogo-offers returns offers with centralized fields"
+      ]
+    },
+    {
+      "feature": "BOGO calculation with store and channel filtering",
+      "status": "WORKING",
+      "details": [
+        "POST /api/bogo-offers/calculate accepts store_id and apply_on parameters",
+        "Filters based on is_global, excluded_store_ids, and apply_on channel"
+      ]
+    },
+    {
+      "feature": "Tiered Discount creation with centralized settings",
+      "status": "WORKING",
+      "details": [
+        "POST /api/tiered-discounts correctly saves centralized fields",
+        "GET /api/tiered-discounts returns discounts with centralized fields"
+      ]
+    },
+    {
+      "feature": "Tiered Discount calculation with store and channel filtering",
+      "status": "WORKING",
+      "details": [
+        "GET /api/tiered-discounts/calculate accepts store_id and apply_on parameters",
+        "Correctly filters discounts based on centralized settings"
+      ]
+    },
+    {
+      "feature": "Combined Discount Calculation API",
+      "status": "WORKING",
+      "details": [
+        "POST /api/discounts/calculate-all applies centralized filtering to all discount types",
+        "Returns store_id and apply_on in response"
+      ]
+    },
+    {
+      "feature": "Frontend - Centralized Settings Section in Item Discount Modal",
+      "status": "WORKING",
+      "details": [
+        "CentralizedSettingsSection component present with Global Discount, Auto-Apply, Allow Branch Override toggles",
+        "Apply On Channels section with POS, Online Orders, Manual Invoice buttons"
+      ]
+    },
+    {
+      "feature": "Frontend - Centralized Settings Section in BOGO Modal",
+      "status": "WORKING",
+      "details": ["Same centralized settings section as Item Discount modal"]
+    },
+    {
+      "feature": "Frontend - Centralized Settings Section in Tiered Modal",
+      "status": "WORKING",
+      "details": ["Same centralized settings section as Item Discount modal"]
+    },
+    {
+      "feature": "Frontend - Channel Badges in Discount Table",
+      "status": "WORKING",
+      "details": [
+        "CentralizedBadge component displays Global, Auto-Apply badges",
+        "Channel badges (pos, online, invoice) displayed for each discount"
+      ]
+    }
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_centralized_discounts.py",
+    "/app/test_reports/pytest/centralized_discounts_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "GOOD: Backend models (ItemDiscountCreate, BOGOOfferCreate, TieredDiscountCreate) correctly define centralized fields with sensible defaults",
+    "GOOD: Calculate APIs filter discounts based on store_id and apply_on channel",
+    "GOOD: Auto_apply flag is respected - discounts with auto_apply=False are skipped in calculations",
+    "GOOD: Store exclusions (excluded_store_ids) work correctly",
+    "GOOD: Frontend CentralizedSettingsSection component is reused across all 3 discount modals",
+    "GOOD: CentralizedBadge component displays appropriate badges in the table"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_centralized_discounts.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (17/17 tests passed)",
+    "frontend": "100% - All UI elements verified"
+  },
+
+  "test_credentials": {
+    "admin_user": {
+      "email": "bedarfirdous@gmail.com",
+      "password": "Admin@123"
+    }
+  },
+
+  "seed_data_creation": "Test discounts created and cleaned up during backend tests",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Centralized Discount Management System is fully implemented and working. Backend APIs support store_id and apply_on filtering for all discount types. Frontend DiscountManagementPage.js has CentralizedSettingsSection component in all modals with toggles for is_global, auto_apply, allow_branch_override and channel selection. CentralizedBadge component displays Global, Auto-Apply, and channel badges in the discount table."
+}

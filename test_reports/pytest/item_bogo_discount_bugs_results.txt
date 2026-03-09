@@ -1,0 +1,18 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-9.0.2, pluggy-1.6.0 -- /root/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /app
+plugins: anyio-4.12.1
+collecting ... collected 9 items
+
+backend/tests/test_item_bogo_discount_bugs.py::TestGlobalItemDiscount::test_global_item_discount_applies_to_all_cart_items PASSED [ 11%]
+backend/tests/test_item_bogo_discount_bugs.py::TestGlobalItemDiscount::test_item_discount_name_shows_in_breakdown PASSED [ 22%]
+backend/tests/test_item_bogo_discount_bugs.py::TestBOGOGlobalBehavior::test_global_bogo_applies_to_all_items PASSED [ 33%]
+backend/tests/test_item_bogo_discount_bugs.py::TestBOGOGlobalBehavior::test_global_bogo_buy_2_get_1_free PASSED [ 44%]
+backend/tests/test_item_bogo_discount_bugs.py::TestBOGOSpecificItems::test_bogo_with_specific_items_only_applies_to_those PASSED [ 55%]
+backend/tests/test_item_bogo_discount_bugs.py::TestBOGOEmptyItemIds::test_verify_bogo_empty_array_logic PASSED [ 66%]
+backend/tests/test_item_bogo_discount_bugs.py::TestTotalDiscountCalculation::test_total_discount_matches_expected PASSED [ 77%]
+backend/tests/test_item_bogo_discount_bugs.py::TestTotalDiscountCalculation::test_discount_names_in_breakdown PASSED [ 88%]
+backend/tests/test_item_bogo_discount_bugs.py::TestItemSpecificDiscount::test_item_specific_discount_not_global PASSED [100%]
+
+============================== 9 passed in 0.56s ===============================

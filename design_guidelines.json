@@ -1,0 +1,173 @@
+{
+  "identity": {
+    "name": "E1",
+    "role": "Creative Designer",
+    "mission": "Create a professional, high-contrast, and efficient Retail POS system with a 'Factory/Industrial' aesthetic.",
+    "principles": [
+      "Fusion over Imitation: Mix Industrial precision with Retail elegance.",
+      "Emotion First: Confidence and Efficiency.",
+      "Content is King: Data legibility is paramount.",
+      "Contrast: High contrast for readability in varying light conditions."
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "heading": {
+        "family": "Chivo, sans-serif",
+        "url": "https://fonts.googleapis.com/css2?family=Chivo:wght@300;400;700;900&display=swap",
+        "usage": "Headings, Hero text, Modal titles",
+        "weights": ["700", "900"]
+      },
+      "body": {
+        "family": "Inter, sans-serif",
+        "url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap",
+        "usage": "Paragraphs, UI labels, Form inputs",
+        "weights": ["400", "500"]
+      },
+      "mono": {
+        "family": "JetBrains Mono, monospace",
+        "url": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap",
+        "usage": "Prices, SKUs, Barcodes, IDs, Tabular data",
+        "weights": ["400", "500"]
+      }
+    },
+    "rules": [
+      "Use 'tracking-tight' for all headings larger than 24px.",
+      "Use 'tracking-wide' for uppercase labels (e.g., table headers).",
+      "Never use Inter for headings > 3xl."
+    ]
+  },
+  "colors": {
+    "palette": {
+      "light": {
+        "background": "#FFFFFF",
+        "foreground": "#0F172A",
+        "card": "#FFFFFF",
+        "card_foreground": "#0F172A",
+        "popover": "#FFFFFF",
+        "popover_foreground": "#0F172A",
+        "primary": "#0F172A",
+        "primary_foreground": "#F8FAFC",
+        "secondary": "#F1F5F9",
+        "secondary_foreground": "#0F172A",
+        "muted": "#F1F5F9",
+        "muted_foreground": "#64748B",
+        "accent": "#F1F5F9",
+        "accent_foreground": "#0F172A",
+        "destructive": "#E11D48",
+        "destructive_foreground": "#FFFFFF",
+        "border": "#E2E8F0",
+        "input": "#E2E8F0",
+        "ring": "#0F172A"
+      },
+      "dark": {
+        "background": "#020617",
+        "foreground": "#F8FAFC",
+        "card": "#0F172A",
+        "card_foreground": "#F8FAFC",
+        "popover": "#0F172A",
+        "popover_foreground": "#F8FAFC",
+        "primary": "#F8FAFC",
+        "primary_foreground": "#0F172A",
+        "secondary": "#1E293B",
+        "secondary_foreground": "#F8FAFC",
+        "muted": "#1E293B",
+        "muted_foreground": "#94A3B8",
+        "accent": "#1E293B",
+        "accent_foreground": "#F8FAFC",
+        "destructive": "#BE123C",
+        "destructive_foreground": "#FFFFFF",
+        "border": "#1E293B",
+        "input": "#1E293B",
+        "ring": "#CBD5E1"
+      }
+    },
+    "semantic": {
+      "brand": "#0F172A",
+      "brand_accent": "#E11D48",
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "error": "#EF4444",
+      "info": "#3B82F6"
+    }
+  },
+  "layout": {
+    "spacing": {
+      "base": "0.25rem",
+      "container_padding": "p-6 md:p-8 lg:p-12",
+      "section_gap": "gap-8"
+    },
+    "grid": {
+      "dashboard": "grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
+      "pos": "grid-cols-12 gap-4"
+    },
+    "radius": {
+      "default": "rounded-md",
+      "button": "rounded-md",
+      "card": "rounded-lg"
+    }
+  },
+  "components": {
+    "buttons": {
+      "default": "h-10 px-4 py-2 font-medium transition-all active:scale-95",
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      "ghost": "hover:bg-accent hover:text-accent-foreground",
+      "destructive": "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+    },
+    "cards": {
+      "default": "bg-card text-card-foreground border border-border shadow-sm hover:shadow-md transition-shadow duration-200",
+      "interactive": "cursor-pointer hover:border-primary/50"
+    },
+    "inputs": {
+      "default": "h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "bg-background/80 backdrop-blur-md border-b border-border/50",
+    "shadows": {
+      "soft": "shadow-[0_2px_10px_rgba(0,0,0,0.05)]",
+      "hover": "shadow-[0_10px_30px_rgba(0,0,0,0.1)]"
+    },
+    "borders": {
+      "subtle": "border border-border",
+      "active": "border-primary ring-1 ring-primary"
+    }
+  },
+  "assets": {
+    "images": {
+      "login_bg": "https://images.unsplash.com/photo-1765009433753-c7462637d21f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzl8MHwxfHNlYXJjaHwxfHxmYXNoaW9uJTIwc3RvcmUlMjBpbnRlcmlvciUyMG1vZGVybnxlbnwwfHx8fDE3Njk5MjY0NDZ8MA&ixlib=rb-4.1.0&q=85",
+      "product_placeholder": "https://images.unsplash.com/photo-1766934587163-186d20bf3d40?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwxfHxjbG90aGluZyUyMHJhY2slMjByZXRhaWwlMjBzdG9yZXxlbnwwfHx8fDE3Njk5MjY0NTF8MA&ixlib=rb-4.1.0&q=85",
+      "staff_placeholder": "https://images.unsplash.com/photo-1758575603874-102a10a06dcb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwzfHxyZXRhaWwlMjBzdGFmZiUyMHBvcnRyYWl0JTIwcHJvZmVzc2lvbmFsfGVufDB8fHx8MTc2OTkyNjQ1NHww&ixlib=rb-4.1.0&q=85",
+      "logo_placeholder": "https://via.placeholder.com/150x50?text=BRAND+MAFIA"
+    },
+    "icons": "lucide-react"
+  },
+  "instructions_to_main_agent": [
+    "Use 'lucide-react' for all icons.",
+    "Use 'sonner' for all toast notifications.",
+    "Implement a 'Bento Grid' layout for the main dashboard.",
+    "Ensure the POS screen is split: Left 60% for Product Grid, Right 40% for Cart/Checkout.",
+    "Use 'JetBrains Mono' for all monetary values, stock counts, and IDs.",
+    "Ensure all interactive elements have 'data-testid' attributes.",
+    "Do not use gradients for backgrounds; use solid colors or subtle noise textures if needed.",
+    "Maintain a 'Factory/Industrial' clean look - avoid excessive rounded corners (max rounded-lg).",
+    "For the 'Mafia' brand feel, use the Dark Mode palette as an option, but default to Light Mode for retail clarity."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. Avoid this.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) for sticky headers.",
+    "You MUST NOT apply universal transition. Eg: 'transition: all'.",
+    "You MUST NOT center align the app container.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations.",
+    "NEVER use AI assistant Emoji characters.",
+    "Every interaction needs micro-animations - hover states, transitions.",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "Components MUST use named exports.",
+    "Pages MUST use default exports."
+  ]
+}

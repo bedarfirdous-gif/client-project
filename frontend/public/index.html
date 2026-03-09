@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" content="#3b82f6" />
+        <meta name="description" content="BijnisBooks - Complete Retail Management System with POS, Inventory, Accounting & HR" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="BijnisBooks" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="application-name" content="BijnisBooks" />
+        <meta name="msapplication-TileColor" content="#3b82f6" />
+        <meta name="msapplication-tap-highlight" content="no" />
+        
+        <!-- PWA Manifest -->
+        <link rel="manifest" href="/manifest.json" />
+        
+        <!-- App Icons -->
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png" />
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-192x192.png" />
+        
+        <!-- Splash Screens for iOS -->
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet" />
+        
+        <title>BijnisBooks - Retail Management</title>
+        <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
+        
+        <!-- Service Worker Registration -->
+        <script>
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then((registration) => {
+                            console.log('SW registered:', registration);
+                        })
+                        .catch((error) => {
+                            console.log('SW registration failed:', error);
+                        });
+                });
+            }
+        </script>
+        
+        <script>
+            // Only load visual edit scripts when inside an iframe
+            if (window.self !== window.top) {
+                var debugMonitorScript = document.createElement('script');
+                debugMonitorScript.src = 'https://assets.emergent.sh/scripts/debug-monitor.js';
+                document.head.appendChild(debugMonitorScript);
+
+                window.tailwind = window.tailwind || {};
+                tailwind.config = {
+                    corePlugins: { preflight: false },
+                };
+
+                var tailwindScript = document.createElement('script');
+                tailwindScript.src = 'https://cdn.tailwindcss.com';
+                document.head.appendChild(tailwindScript);
+            }
+        </script>
+        
+        <!-- Apply saved color theme immediately to prevent flash -->
+        <script>
+            (function() {
+                var COLOR_THEMES = {
+                    'default': {
+                        '--background': '0 0% 100%',
+                        '--foreground': '222.2 84% 4.9%',
+                        '--card': '0 0% 100%',
+                        '--card-foreground': '222.2 84% 4.9%',
+                        '--primary': '221.2 83.2% 53.3%',
+                        '--primary-foreground': '210 40% 98%',
+                        '--secondary': '210 40% 96.1%',
+                        '--accent': '210 40% 96.1%',
+                        '--muted': '210 40% 96.1%',
+                        '--muted-foreground': '215.4 16.3% 46.9%',
+                        '--border': '214.3 31.8% 91.4%',
+                        '--sidebar-bg': '221.2 83.2% 53.3%',
+                        '--header-bg': '0 0% 100%',
+                    },
+                    'ocean-blue': {
+                        '--background': '200 50% 98%',
+                        '--foreground': '200 50% 11%',
+                        '--card': '0 0% 100%',
+                        '--card-foreground': '200 50% 11%',
+                        '--primary': '199 89% 48%',
+                        '--primary-foreground': '0 0% 100%',
+                        '--secondary': '200 95% 93%',
+                        '--accent': '200 95% 93%',
+                        '--muted': '200 32% 91%',
+                        '--muted-foreground': '200 16% 47%',
+                        '--border': '200 32% 91%',
+                        '--sidebar-bg': '199 89% 35%',
+                        '--header-bg': '0 0% 100%',
+                    },
+                    'forest-green': {
+                        '--background': '120 30% 98%',
+                        '--foreground': '120 30% 11%',
+                        '--card': '0 0% 100%',
+                        '--card-foreground': '120 30% 11%',
+                        '--primary': '142 76% 36%',
+                        '--primary-foreground': '0 0% 100%',
+                        '--secondary': '120 35% 93%',
+                        '--accent': '120 35% 93%',
+                        '--muted': '120 20% 91%',
+                        '--muted-foreground': '120 10% 47%',
+                        '--border': '120 20% 91%',
+                        '--sidebar-bg': '142 76% 28%',
+                        '--header-bg': '0 0% 100%',
+                    },
+                    'purple-gradient': {
+                        '--background': '270 50% 98%',
+                        '--foreground': '270 50% 11%',
+                        '--card': '0 0% 100%',
+                        '--card-foreground': '270 50% 11%',
+                        '--primary': '262 83% 58%',
+                        '--primary-foreground': '0 0% 100%',
+                        '--secondary': '270 95% 93%',
+                        '--accent': '270 95% 93%',
+                        '--muted': '270 32% 91%',
+                        '--muted-foreground': '270 16% 47%',
+                        '--border': '270 32% 91%',
+                        '--sidebar-bg': '262 83% 40%',
+                        '--header-bg': '0 0% 100%',
+                    },
+                    'dark-mode': {
+                        '--background': '222.2 84% 4.9%',
+                        '--foreground': '210 40% 98%',
+                        '--card': '222.2 84% 8%',
+                        '--card-foreground': '210 40% 98%',
+                        '--primary': '217.2 91.2% 59.8%',
+                        '--primary-foreground': '222.2 84% 4.9%',
+                        '--secondary': '217.2 32.6% 17.5%',
+                        '--accent': '217.2 32.6% 17.5%',
+                        '--muted': '217.2 32.6% 17.5%',
+                        '--muted-foreground': '215 20.2% 65.1%',
+                        '--border': '217.2 32.6% 17.5%',
+                        '--sidebar-bg': '222.2 84% 6%',
+                        '--header-bg': '222.2 84% 8%',
+                    },
+                    'sunset-orange': {
+                        '--background': '30 50% 98%',
+                        '--foreground': '30 50% 11%',
+                        '--card': '0 0% 100%',
+                        '--card-foreground': '30 50% 11%',
+                        '--primary': '25 95% 53%',
+                        '--primary-foreground': '0 0% 100%',
+                        '--secondary': '30 95% 93%',
+                        '--accent': '30 95% 93%',
+                        '--muted': '30 32% 91%',
+                        '--muted-foreground': '30 16% 47%',
+                        '--border': '30 32% 91%',
+                        '--sidebar-bg': '25 95% 25%',
+                        '--header-bg': '0 0% 100%',
+                    },
+                    'india-tricolor': {
+                        '--background': '0 0% 99%',
+                        '--foreground': '150 80% 15%',
+                        '--card': '0 0% 100%',
+                        '--card-foreground': '150 80% 15%',
+                        '--primary': '150 89% 22%',
+                        '--primary-foreground': '0 0% 100%',
+                        '--secondary': '24 100% 93%',
+                        '--accent': '24 100% 56%',
+                        '--muted': '150 20% 95%',
+                        '--muted-foreground': '150 20% 40%',
+                        '--border': '150 20% 90%',
+                        '--sidebar-bg': '150 89% 18%',
+                        '--header-bg': '24 100% 56%',
+                    },
+                    'retail-purple': {
+                        '--background': '240 20% 10%',
+                        '--foreground': '0 0% 95%',
+                        '--card': '240 20% 13%',
+                        '--card-foreground': '0 0% 95%',
+                        '--primary': '262 83% 58%',
+                        '--primary-foreground': '0 0% 100%',
+                        '--secondary': '240 20% 18%',
+                        '--accent': '187 94% 48%',
+                        '--muted': '240 20% 20%',
+                        '--muted-foreground': '240 10% 60%',
+                        '--border': '240 20% 20%',
+                        '--sidebar-bg': '240 20% 8%',
+                        '--header-bg': '240 20% 13%',
+                    }
+                };
+                
+                try {
+                    var savedTheme = localStorage.getItem('colorTheme') || 'default';
+                    var themeColors = COLOR_THEMES[savedTheme];
+                    if (themeColors) {
+                        var root = document.documentElement;
+                        for (var key in themeColors) {
+                            root.style.setProperty(key, themeColors[key]);
+                        }
+                        if (savedTheme === 'dark-mode' || savedTheme === 'retail-purple') {
+                            root.classList.add('dark');
+                        }
+                    }
+                } catch(e) {
+                    console.log('Theme init error:', e);
+                }
+            })();
+        </script>
+    </head>
+    <body>
+        <noscript>You need to enable JavaScript to run this app.</noscript>
+        <div id="root">
+            <!-- Loading state shown until React hydrates - prevents blank screen flash -->
+            <div id="initial-loader" style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: hsl(var(--background, 0 0% 100%));">
+                <div style="width: 2rem; height: 2rem; border: 3px solid hsl(var(--border, 214.3 31.8% 91.4%)); border-top-color: hsl(var(--primary, 221.2 83.2% 53.3%)); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            </div>
+            <style>
+                @keyframes spin { to { transform: rotate(360deg); } }
+                #initial-loader { transition: opacity 0.2s ease-out; }
+            </style>
+        </div>
+        <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+        <script>
+            !(function (t, e) {
+                var o, n, p, r;
+                e.__SV ||
+                    ((window.posthog = e),
+                    (e._i = []),
+                    (e.init = function (i, s, a) {
+                        function g(t, e) {
+                            var o = e.split(".");
+                            2 == o.length && ((t = t[o[0]]), (e = o[1])),
+                                (t[e] = function () {
+                                    t.push(
+                                        [e].concat(
+                                            Array.prototype.slice.call(
+                                                arguments,
+                                                0,
+                                            ),
+                                        ),
+                                    );
+                                });
+                        }
+                        ((p = t.createElement("script")).type =
+                            "text/javascript"),
+                            (p.crossOrigin = "anonymous"),
+                            (p.async = !0),
+                            (p.src =
+                                s.api_host.replace(
+                                    ".i.posthog.com",
+                                    "-assets.i.posthog.com",
+                                ) + "/static/array.js"),
+                            (r =
+                                t.getElementsByTagName(
+                                    "script",
+                                )[0]).parentNode.insertBefore(p, r);
+                        var u = e;
+                        for (
+                            void 0 !== a ? (u = e[a] = []) : (a = "posthog"),
+                                u.people = u.people || [],
+                                u.toString = function (t) {
+                                    var e = "posthog";
+                                    return (
+                                        "posthog" !== a && (e += "." + a),
+                                        t || (e += " (stub)"),
+                                        e
+                                    );
+                                },
+                                u.people.toString = function () {
+                                    return u.toString(1) + ".people (stub)";
+                                },
+                                o =
+                                    "init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(
+                                        " ",
+                                    ),
+                                n = 0;
+                            n < o.length;
+                            n++
+                        )
+                            g(u, o[n]);
+                        e._i.push([i, s, a]);
+                    }),
+                    (e.__SV = 1));
+            })(document, window.posthog || []);
+            posthog.init("phc_xAvL2Iq4tFmANRE7kzbKwaSqp1HJjN7x48s3vr0CMjs", {
+                api_host: "https://us.i.posthog.com",
+                person_profiles: "identified_only", // or 'always' to create profiles for anonymous users as well,
+                session_recording: {
+                    recordCrossOriginIframes: true,
+                    capturePerformance: false,
+                },
+            });
+        </script>
+    </body>
+</html>

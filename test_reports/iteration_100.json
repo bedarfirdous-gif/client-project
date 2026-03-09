@@ -1,0 +1,75 @@
+{
+  "summary": "Custom Store Slug Setting feature testing completed. All backend API endpoints (GET /api/ecommerce/check-slug/{slug}, PUT /api/ecommerce/store-slug) are working correctly with proper slug validation. Frontend UI features including Online Store product catalogue, Store Dashboard dialog with tabs (Dashboard, Orders, B2B Customers, Inventory Sync, SEO Blog), E-Commerce Settings with Custom Store Subdomain section, and DNS Setup instructions dialog are all functional.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ecommerce_slug.py",
+    "/app/test_reports/pytest/ecommerce_slug_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Custom Store Slug feature well-implemented in server.py (lines 27835-27917)",
+    "Frontend EcommercePage.js correctly implements slug validation with debounced availability check",
+    "data-testid attributes present for key UI elements (custom-slug-input, save-slug-btn, ecommerce-settings-btn)",
+    "DNS instructions dialog provides clear CNAME record setup guidance",
+    "Slug validation enforces 3-30 chars, lowercase alphanumeric and hyphens",
+    "Reserved words (admin, api, www, shop, etc.) properly blocked"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ecommerce_slug.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": "superadmin@bijnisbooks.com / admin123",
+  "seed_data_creation": "Test slugs created via PUT /api/ecommerce/store-slug endpoint",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Custom store slug feature fully functional. Store URL displayed as test-store-ac1af3.bijnisbooks.com. Slug availability checking, validation, and DNS instructions all working correctly.",
+  "features_tested": {
+    "Online Store link shows Product Catalogue (ItemsPage) with products grid": {
+      "status": "PASSED",
+      "details": "Online Store sidebar link navigates to ItemsPage showing 3 products (Coke, Pizza, Burger) in grid layout with AI badges, search, and action buttons"
+    },
+    "Store Dashboard button visible in catalogue page": {
+      "status": "PASSED",
+      "details": "Store Dashboard button with chart icon visible in top header area with purple gradient background"
+    },
+    "Store Dashboard dialog opens showing E-commerce features": {
+      "status": "PASSED",
+      "details": "Dialog shows E-Commerce header, store URL, tabs (Dashboard, Orders, B2B Customers, Inventory Sync, SEO Blog), and stats cards (Monthly Revenue, Monthly Orders, Avg Order Value, Pending Orders)"
+    },
+    "E-Commerce Settings dialog shows Custom Store Subdomain section": {
+      "status": "PASSED",
+      "details": "Settings dialog shows Enable Online Store toggle, Your Store URL section, Custom Store Subdomain section with globe icon header, slug input field, .bijnisbooks.com suffix, validation message, Save Slug and DNS Setup buttons"
+    },
+    "Custom slug input field accepts lowercase letters, numbers, hyphens": {
+      "status": "PASSED",
+      "details": "Input field with data-testid='custom-slug-input' accepts valid slug format. Validation text shows 'Slug must be 3-30 characters, lowercase letters, numbers, and hyphens only.'"
+    },
+    "Save Slug button enabled only when slug is valid and available": {
+      "status": "PASSED",
+      "details": "Save Slug button shown in purple color, green checkmark appears with 'This slug is available!' message when slug is valid and available. Button disabled when slug is invalid or taken"
+    },
+    "DNS Setup button opens DNS instructions dialog": {
+      "status": "PASSED",
+      "details": "DNS Setup button opens 'Connect Your Subdomain' dialog with Your Store is Ready message, CNAME record details (Type: CNAME, Host: shop, Value: stores.bijnisbooks.com, TTL: 3600), example explanation, 5-step setup instructions, and Copy DNS Record button"
+    },
+    "Backend API /api/ecommerce/check-slug returns availability status": {
+      "status": "PASSED",
+      "details": "GET endpoint returns {available: true/false, slug, preview_url} for valid slugs, rejects reserved words, too short slugs (<3 chars), and invalid formats"
+    },
+    "Backend API /api/ecommerce/store-slug updates slug in tenant": {
+      "status": "PASSED",
+      "details": "PUT endpoint validates slug format, checks for reserved words, verifies uniqueness across tenants, updates MongoDB tenants collection, returns {slug, store_url, dns_instructions}"
+    }
+  }
+}
