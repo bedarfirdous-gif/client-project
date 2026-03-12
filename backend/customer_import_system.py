@@ -30,7 +30,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 # AI Integration
-from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+## from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 
 from dotenv import load_dotenv
 load_dotenv()

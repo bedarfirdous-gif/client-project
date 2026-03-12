@@ -31,7 +31,7 @@ from enum import Enum
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 # LLM Integration
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+## from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 import logging
 logger = logging.getLogger(__name__)

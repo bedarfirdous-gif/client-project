@@ -26,8 +26,8 @@ load_dotenv()
 
 # Import LLM integrations
 try:
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+    # from emergentintegrations.llm.chat import LlmChat, UserMessage
+    # from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
     EMERGENT_AVAILABLE = True
 except ImportError:
     EMERGENT_AVAILABLE = False

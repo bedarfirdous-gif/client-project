@@ -28,7 +28,7 @@ from enum import Enum
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 # LLM Integration for intelligent fixes
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+## from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("UIBlinkFixAgent")

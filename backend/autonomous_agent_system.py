@@ -29,7 +29,7 @@ logger = logging.getLogger("AutonomousAgent")
 
 # Try to import LLM
 try:
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    # from emergentintegrations.llm.chat import LlmChat, UserMessage
     HAS_LLM = True
 except ImportError:
     HAS_LLM = False

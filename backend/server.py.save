@@ -1,6 +1,6 @@
 """
 BijnisBooks Backend Server
-==========================
+˙==========================
 
 A comprehensive business management system with:
 - Multi-tenant architecture
@@ -371,9 +371,7 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 UPLOAD_DIR = ROOT_DIR / 'uploads' / 'images'
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(
-    title="BijnisBooks API",
-)
+app = FastAPI(title="The Brand Mafia POS API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 

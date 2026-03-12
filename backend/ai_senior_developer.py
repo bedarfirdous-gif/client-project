@@ -865,7 +865,7 @@ class AISeniorDeveloper:
             if not api_key:
                 return {"success": False, "error": "LLM key not configured"}
             
-            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            # from emergentintegrations.llm.chat import LlmChat, UserMessage
             import uuid
             
             # Read file context if available
@@ -992,7 +992,7 @@ IMPORTANT: Return ONLY the JSON object, no markdown or other text."""
                 if 0 <= line_idx < len(original_lines):
                     # Use LLM to generate the exact replacement
                     api_key = os.environ.get("EMERGENT_LLM_KEY")
-                    from emergentintegrations.llm.chat import LlmChat, UserMessage
+                    # from emergentintegrations.llm.chat import LlmChat, UserMessage
                     import uuid
                     
                     context = ''.join(original_lines[max(0, line_idx-5):min(len(original_lines), line_idx+6)])

@@ -21,7 +21,7 @@ from typing import List, Dict, Any, Optional, Callable, Union
 from enum import Enum
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+## from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 logger = logging.getLogger(__name__)
 

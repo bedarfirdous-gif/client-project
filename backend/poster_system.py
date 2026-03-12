@@ -188,7 +188,7 @@ class AutoPosterSystem:
         user_id: str
     ) -> Dict[str, Any]:
         """Generate a marketing poster using AI"""
-        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+        # from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
         
         now = datetime.now(timezone.utc).isoformat()
         poster_id = str(uuid.uuid4())
@@ -420,7 +420,7 @@ class AutoPosterSystem:
         festival_theme: Optional[Dict]
     ) -> tuple:
         """Generate caption and hashtags for the poster"""
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        # from emergentintegrations.llm.chat import LlmChat, UserMessage
         
         try:
             chat = LlmChat(

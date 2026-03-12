@@ -27,7 +27,7 @@ logger = logging.getLogger("AutoHealAI")
 
 # Try to import LLM for intelligent analysis
 try:
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    # from emergentintegrations.llm.chat import LlmChat, UserMessage
     HAS_LLM = True
 except ImportError:
     HAS_LLM = False

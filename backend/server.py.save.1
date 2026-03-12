@@ -372,8 +372,8 @@ UPLOAD_DIR = ROOT_DIR / 'uploads' / 'images'
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
-    title="BijnisBooks API",
-)
+    root_path="/api"
+)(title="The Brand Mafia POS API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
