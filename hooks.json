@@ -1,0 +1,7 @@
+[
+ {
+   "id": "deploy",
+   "execute-command": "/home/ubuntu/client-project/backend/deploy.sh",
+   "command-working-directory": "/home/ubuntu/client-project/backend"
+ }
+]
